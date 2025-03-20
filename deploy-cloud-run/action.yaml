@@ -1,0 +1,50 @@
+name: Docker login, build & push action
+description: Docker composite that does the login into Google AR, builds and pushes the docker image to AR
+
+inputs:
+  image:
+    required: true
+    description: Cloud run service docker image
+
+  service:
+    required: true
+    description: Cloud run service name
+  
+  container:
+    required: true
+    description: Cloud run service container name
+
+  google-login:
+    required: true
+    description: Perform Google Auth
+    default: "false"
+  
+  google-credentials:
+    required: true
+    description: Google Credentials for AR access
+    default: ""
+
+outputs:
+  image:
+    description: Image built by this action
+    value: ${{ inputs.image }}
+
+runs:
+  using: composite
+  steps:
+    - name: Google Auth
+      id: auth
+      if: ${{ inputs.google-login == 'true' }}
+      uses: 'google-github-actions/auth@v2'
+      with:
+        token_format: 'access_token'
+        credentials_json: '${{ inputs.google-credentials }}'
+
+    - name: Cloud Run Deploy
+      id: 'deploy'
+      uses: 'google-github-actions/deploy-cloudrun@v2'
+      with:
+        service: '${{ inputs.service }}'
+        image: '${{ inputs.image }}'
+        
+
