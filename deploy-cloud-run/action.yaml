@@ -10,9 +10,9 @@ inputs:
     required: true
     description: Cloud run service name
   
-  container:
-    required: true
-    description: Cloud run service container name
+  # container:
+  #   required: true
+  #   description: Cloud run service container name
 
   google-login:
     required: true
