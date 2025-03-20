@@ -60,6 +60,6 @@ runs:
     
     - name: Docker Push
       id: docker-push
-      if: ${{ inputs.push == "true" }}
+      if: ${{ inputs.push == 'true' }}
       shell: bash
       run: docker push '${{ inputs.image }}'
