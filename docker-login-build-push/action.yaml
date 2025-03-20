@@ -34,6 +34,11 @@ inputs:
     default: "true"
     description: Docker push
 
+outputs:
+  image:
+    description: Image built by this action
+    value: ${{ inputs.image }}
+
 runs:
   using: composite
   steps:
