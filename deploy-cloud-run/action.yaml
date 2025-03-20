@@ -57,7 +57,7 @@ runs:
 
     - name: Cloud Run Deploy 
       shell: bash
-      run: gcloud beta run deploy '${{ inputs.service }}' --container '${{ inputs.container }}' --image '${{ inputs.image }}'
+      run: gcloud beta run services update '${{ inputs.service }}' --region '${{ inputs.region }}' --container '${{ inputs.container }}' --image '${{ inputs.image }}'
 
         
 
