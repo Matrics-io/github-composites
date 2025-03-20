@@ -9,6 +9,10 @@ inputs:
   service:
     required: true
     description: Cloud run service name
+
+  container:
+    required: true
+    description: Cloud run service container name
   
   region:
     required: true
@@ -17,6 +21,11 @@ inputs:
   google-login:
     required: true
     description: Perform Google Auth
+    default: "false"
+
+  setup-gcloud:
+    required: true
+    description: Setup GCloud
     default: "false"
   
   google-credentials:
@@ -39,14 +48,16 @@ runs:
       with:
         token_format: 'access_token'
         credentials_json: '${{ inputs.google-credentials }}'
-
-    - name: Cloud Run Deploy
-      id: 'deploy'
-      uses: 'google-github-actions/deploy-cloudrun@v2'
+    
+    - name: 'Set up Cloud SDK'
+      if: ${{ inputs.setup-gcloud == 'true' }}
+      uses: 'google-github-actions/setup-gcloud@v2'
       with:
-        service: '${{ inputs.service }}'
-        image: '${{ inputs.image }}'
-        region: '${{ inputs.region }}'
+        version: '>= 363.0.0'
+
+    - name: Cloud Run Deploy 
+      shell: bash
+      run: gcloud beta run deploy '${{ inputs.service }}' --container '${{ inputs.container }}' --image '${{ inputs.image }}'
 
         
 
