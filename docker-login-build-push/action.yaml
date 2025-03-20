@@ -24,6 +24,15 @@ inputs:
   google-region: 
     required: true
     description: Google Project Region
+  
+  google-credentials:
+    required: true
+    description: Google Credentials for AR access
+
+  push:
+    required: true
+    default: "true"
+    description: Docker push
 
 runs:
   using: composite
@@ -33,7 +42,7 @@ runs:
       uses: 'google-github-actions/auth@v2'
       with:
         token_format: 'access_token'
-        credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+        credentials_json: '${{ inputs.google-credentials }}'
         
 
     - name: Docker Auth
@@ -47,7 +56,10 @@ runs:
     - name: Docker Build
       id: docker-build
       shell: bash
-      run: |
-        docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
-        
-        docker push '${{ inputs.image }}'
+      run: docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
+    
+    - name: Docker Push
+      id: docker-push
+      if: ${{ inputs.push == "true" }}
+      shell: bash
+      run: docker push '${{ inputs.image }}'
