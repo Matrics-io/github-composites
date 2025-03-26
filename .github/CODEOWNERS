@@ -1,0 +1,7 @@
+# Global owners
+* @altingjonbalajj @durimkrasniqi1
+
+# docs/ @example - This is an owner of docs folder
+# argocd/ @example - This is an owner of argocd folder
+# /infrastructure/ @example - This is an owner of infrastructure
+# /infrastructure/platform @example - This is an owner of platform infrastructure
