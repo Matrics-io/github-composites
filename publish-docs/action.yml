@@ -33,7 +33,7 @@ runs:
         token: ${{ inputs.documentation_pat }}
         path: ${{ inputs.documentation_checkout_path }}
         ref: ${{ inputs.target_branch }}
-
+        fetch-depth: 0
 
     - name: Copy docs to Documentation Repository 
       shell: bash
