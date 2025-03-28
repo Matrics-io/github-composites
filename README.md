@@ -39,7 +39,7 @@ jobs:
 
       # Use the reusable GitHub Action from this repository
       - name: Build and Deploy
-        uses: 91Life/build-and-deploy@main  # or specify a tag like v1.0.0
+        uses: 91Life/github-composites/build-and-deploy@main  # or specify a tag like v1.0.0
         with:
           param1: value1
           param2: value2
@@ -56,11 +56,11 @@ Each action can accept specific parameters. For example, the `build-and-deploy` 
 If you want to pin the action to a specific version or branch, you can replace `@main` with a tag or branch name. For example:
 
 ```yaml
-uses: 91Life/build-and-deploy@v1.0.0 # Using a specific tag
+uses: 91Life/github-composites/build-and-deploy@v1.0.0 # Using a specific tag
 ```
 or
 ```yaml
-uses: 91Life/build-and-deploy@feature-branch # Using a custom branch
+uses: 91Life/github-composites/build-and-deploy@feature-branch # Using a custom branch
 ```
 
 #### 4. Set Up Secrets and Environment Variables  
