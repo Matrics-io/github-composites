@@ -10,6 +10,9 @@ inputs:
   target_directory:
     description: 'Name of the target directory in the Documentation repository (e.g. Infrastructure)'
     required: true
+  target_branch:
+    description: 'Name of the target branch'
+    required: true  
   source_directory:
     description: 'Path to the docs directory to publish from'
     required: true
@@ -29,6 +32,8 @@ runs:
         repository: ${{ inputs.documentation_repository }}
         token: ${{ inputs.documentation_pat }}
         path: ${{ inputs.documentation_checkout_path }}
+        ref: ${{ inputs.target_branch }}
+
 
     - name: Copy docs to Documentation Repository 
       shell: bash
