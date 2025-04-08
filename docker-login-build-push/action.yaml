@@ -1,62 +1,70 @@
-name: Nx Docker Build & Push
-
-description: Build and push Docker images using Nx and GCP Artifact Registry.
+name: Docker login, build & push action
+description: Docker composite that does the login into Google AR, builds and pushes the docker image to AR
 
 inputs:
-  project:
-    required: true
-    description: Name of the Nx project to build
-
   image:
     required: true
-    description: Full image name (e.g. gcr.io/project-id/image-name:tag)
-
-  google-region:
+    description: Docker image name
+  
+  context:
     required: true
-    description: GCP region (e.g. us-central1)
+    default: "."
+    description: Docker build context
+  
+  dockerfile:
+    required: true
+    default: "Dockerfile"
+    description: Dockerfile name & path
 
+  args:
+    required: true
+    default: ""
+    description: Docker args
+
+  google-region: 
+    required: true
+    description: Google Project Region
+  
   google-credentials:
     required: true
-    description: GCP service account key in JSON format
+    description: Google Credentials for AR access
 
   push:
-    required: false
+    required: true
     default: "true"
-    description: Whether to push the image (true/false)
+    description: Docker push
+
+outputs:
+  image:
+    description: Image built by this action
+    value: ${{ inputs.image }}
 
 runs:
-  using: "composite"
+  using: composite
   steps:
-    - name: Authenticate with Google Cloud
+    - name: Google Auth
       id: auth
-      uses: google-github-actions/auth@v2
+      uses: 'google-github-actions/auth@v2'
       with:
         token_format: 'access_token'
         credentials_json: '${{ inputs.google-credentials }}'
+        
 
-    - name: Docker Login to GCP Artifact Registry
-      uses: docker/login-action@v3
+    - name: Docker Auth
+      id: docker-auth
+      uses: 'docker/login-action@v3'
       with:
-        registry: '${{ inputs.google-region }}-docker.pkg.dev'
-        username: oauth2accesstoken
+        username: 'oauth2accesstoken'
         password: '${{ steps.auth.outputs.access_token }}'
-
-    - name: Install Nx CLI (if not using container-based job)
-      run: npm install -g nx
+        registry: '${{ inputs.google-region }}-docker.pkg.dev'
+    
+    - name: Docker Build
+      id: docker-build
       shell: bash
-
-    - name: Build Docker image with Nx Container
-      run: |
-        npx nx run ${{ inputs.project }}:container
-      shell: bash
-
-    - name: Tag Docker Image
-      run: |
-        docker tag ${{ inputs.project }} ${{ inputs.image }}
-      shell: bash
-
-    - name: Push Docker Image
+      run: docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
+    
+    - name: Docker Push
+      id: docker-push
       if: ${{ inputs.push == 'true' }}
-      run: |
-        docker push ${{ inputs.image }}
       shell: bash
+      run: docker push '${{ inputs.image }}'
