@@ -5,11 +5,11 @@ description: Build and push Docker images using Nx and GCP Artifact Registry.
 inputs:
   project:
     required: true
-    description: Name of the Nx project to build
+    description: Name of the Nx project to build using the :container target
 
   image:
     required: true
-    description: Full image name (e.g. gcr.io/project-id/image-name:tag)
+    description: Full image name (e.g. us-central1-docker.pkg.dev/project-id/repo/image:tag)
 
   google-region:
     required: true
@@ -23,6 +23,11 @@ inputs:
     required: false
     default: "true"
     description: Whether to push the image (true/false)
+
+outputs:
+  image:
+    description: Image built and optionally pushed by this action
+    value: ${{ inputs.image }}
 
 runs:
   using: "composite"
@@ -42,21 +47,21 @@ runs:
         password: '${{ steps.auth.outputs.access_token }}'
 
     - name: Install Nx CLI (if not using container-based job)
-      run: npm install -g nx
       shell: bash
+      run: npm install -g nx
 
-    - name: Build Docker image with Nx Container
+    - name: Build Docker image using Nx target
+      shell: bash
       run: |
         npx nx run ${{ inputs.project }}:container
-      shell: bash
 
     - name: Tag Docker Image
+      shell: bash
       run: |
         docker tag ${{ inputs.project }} ${{ inputs.image }}
-      shell: bash
 
     - name: Push Docker Image
       if: ${{ inputs.push == 'true' }}
+      shell: bash
       run: |
         docker push ${{ inputs.image }}
-      shell: bash
