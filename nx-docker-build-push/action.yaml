@@ -41,15 +41,15 @@ runs:
       id: auth
       uses: google-github-actions/auth@v2
       with:
-        token_format: 'access_token'
-        credentials_json: '${{ inputs.google-credentials }}'
+        token_format: access_token
+        credentials_json: ${{ inputs.google-credentials }}
 
     - name: Docker Login to GCP Artifact Registry
       uses: docker/login-action@v3
       with:
-        registry: '${{ inputs.google-region }}-docker.pkg.dev'
+        registry: ${{ inputs.google-region }}-docker.pkg.dev
         username: oauth2accesstoken
-        password: '${{ steps.auth.outputs.access_token }}'
+        password: ${{ steps.auth.outputs.access_token }}
 
     - uses: actions/checkout@v4
 
