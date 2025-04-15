@@ -32,19 +32,12 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Authenticate with Google Cloud
-      id: auth
-      uses: google-github-actions/auth@v2
-      with:
-        token_format: access_token
-        credentials_json: ${{ inputs.google-credentials }}
-
     - name: Docker Login to GCP Artifact Registry
       uses: docker/login-action@v3
       with:
         registry: ${{ inputs.google-region }}-docker.pkg.dev
-        username: oauth2accesstoken
-        password: ${{ steps.auth.outputs.access_token }}
+        username: _json_key
+        password: ${{ inputs.google-credentials }}
 
     - uses: nrwl/nx-set-shas@v4
       with:

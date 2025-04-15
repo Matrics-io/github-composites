@@ -5,12 +5,12 @@ inputs:
   image:
     required: true
     description: Docker image name
-  
+
   context:
     required: true
     default: "."
     description: Docker build context
-  
+
   dockerfile:
     required: true
     default: "Dockerfile"
@@ -21,10 +21,10 @@ inputs:
     default: ""
     description: Docker args
 
-  google-region: 
+  google-region:
     required: true
     description: Google Project Region
-  
+
   google-credentials:
     required: true
     description: Google Credentials for AR access
@@ -42,27 +42,18 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Google Auth
-      id: auth
-      uses: 'google-github-actions/auth@v2'
+    - name: Docker Login to GCP Artifact Registry
+      uses: docker/login-action@v3
       with:
-        token_format: 'access_token'
-        credentials_json: '${{ inputs.google-credentials }}'
-        
+        registry: ${{ inputs.google-region }}-docker.pkg.dev
+        username: _json_key
+        password: ${{ inputs.google-credentials }}
 
-    - name: Docker Auth
-      id: docker-auth
-      uses: 'docker/login-action@v3'
-      with:
-        username: 'oauth2accesstoken'
-        password: '${{ steps.auth.outputs.access_token }}'
-        registry: '${{ inputs.google-region }}-docker.pkg.dev'
-    
     - name: Docker Build
       id: docker-build
       shell: bash
       run: docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
-    
+
     - name: Docker Push
       id: docker-push
       if: ${{ inputs.push == 'true' }}
