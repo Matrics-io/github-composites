@@ -54,4 +54,4 @@ runs:
       shell: bash
       env:
         NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
-      run: nx run-many --targets='${{ inputs.plugin }}:${{ inputs.target }}'
+      run: nx run heartplus:container:${{ inputs.target }}
