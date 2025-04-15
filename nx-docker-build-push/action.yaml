@@ -16,6 +16,11 @@ inputs:
     required: true
     description: Configuration name inside the plugin specified above for the specified application
 
+  use-nx-cloud:
+    required: true
+    default: "false"
+    description: Use Nx Cloud features
+
   google-region:
     required: true
     description: GCP region (e.g. us-central1)
@@ -23,11 +28,6 @@ inputs:
   google-credentials:
     required: true
     description: GCP service account key in JSON format
-
-outputs:
-  image:
-    description: Image built and optionally pushed by this action
-    value: ${{ inputs.image }}
 
 runs:
   using: "composite"
@@ -52,4 +52,6 @@ runs:
 
     - name: Build affected projects using Nx target
       shell: bash
+      env:
+        NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
       run: nx affected -t ${{ inputs.plugin }}:${{ inputs.target }}
