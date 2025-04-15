@@ -55,8 +55,6 @@ runs:
         username: oauth2accesstoken
         password: ${{ steps.auth.outputs.access_token }}
 
-    - uses: actions/checkout@v4
-
     - name: Build affected projects using Nx target
       if: ${{ inputs.run-affected == 'true' }}
       shell: bash
