@@ -47,10 +47,8 @@ runs:
         password: ${{ steps.auth.outputs.access_token }}
 
     - uses: nrwl/nx-set-shas@v4
-
-    - name: Register to Nx Cloud
-      shell: bash
-      run: npx nx-cloud record -- nx format:check
+      with:
+        main-branch-name: ${{ inputs.base-branch }}
 
     - name: Build affected projects using Nx target
       shell: bash
