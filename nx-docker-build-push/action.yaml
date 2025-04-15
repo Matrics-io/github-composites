@@ -12,10 +12,6 @@ inputs:
     required: true
     description: Base branch to check changed files
 
-  application:
-    required: true
-    description: Name of the Nx application to build using target
-
   target:
     required: true
     description: Configuration name inside the plugin specified above for the specified application
