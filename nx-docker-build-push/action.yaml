@@ -48,6 +48,10 @@ runs:
 
     - uses: nrwl/nx-set-shas@v4
 
+    - name: Register to Nx Cloud
+      shell: bash
+      run: npx nx-cloud record -- nx format:check
+
     - name: Build affected projects using Nx target
       shell: bash
       run: nx affected -t ${{ inputs.plugin }}:${{ inputs.target }}
