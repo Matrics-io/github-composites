@@ -33,11 +33,6 @@ inputs:
     required: true
     description: GCP service account key in JSON format
 
-  push:
-    required: false
-    default: "true"
-    description: Whether to push the image (true/false)
-
 outputs:
   image:
     description: Image built and optionally pushed by this action
