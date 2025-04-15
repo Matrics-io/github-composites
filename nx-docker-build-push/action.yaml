@@ -8,11 +8,6 @@ inputs:
     description: Nx plugin that is going to be run to build the images
     default: container
 
-  run-affected:
-    required: true
-    default: 'true'
-    description: Run only affected applications
-
   base-branch:
     required: true
     description: Base branch to check changed files
@@ -55,12 +50,8 @@ runs:
         username: oauth2accesstoken
         password: ${{ steps.auth.outputs.access_token }}
 
-    - name: Build affected projects using Nx target
-      if: ${{ inputs.run-affected == 'true' }}
-      shell: bash
-      run: nx affected --base=${{ inputs.base-branch }} --head=HEAD -t ${{ inputs.plugin }}:${{ inputs.target }}
+    - uses: nrwl/nx-set-shas@v4
 
     - name: Build affected projects using Nx target
-      if: ${{ inputs.run-affected != 'true' }}
       shell: bash
       run: nx affected -t ${{ inputs.plugin }}:${{ inputs.target }}
