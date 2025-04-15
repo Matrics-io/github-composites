@@ -58,7 +58,7 @@ runs:
     - name: Build affected projects using Nx target
       if: ${{ inputs.run-affected == 'true' }}
       shell: bash
-      run: nx affected --base=${{ inputs.base_branch }} --head=HEAD -t ${{ inputs.plugin }}:${{ inputs.target }}
+      run: nx affected --base=${{ inputs.base-branch }} --head=HEAD -t ${{ inputs.plugin }}:${{ inputs.target }}
 
     - name: Build affected projects using Nx target
       if: ${{ inputs.run-affected != 'true' }}
