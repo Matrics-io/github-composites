@@ -1,15 +1,20 @@
 name: Nx Docker Build & Push
 
-description: Build and push Docker images using Nx and GCP Artifact Registry.
+description: Build and push Docker images using Nx and GCP Artifact Registry
 
 inputs:
-  project:
+  plugin:
     required: true
-    description: Name of the Nx project to build using the :container target
+    description: Nx plugin that is going to be run to build the images
+    default: container
 
-  image:
+  application:
     required: true
-    description: Full image name (e.g. us-central1-docker.pkg.dev/project-id/repo/image:tag)
+    description: Name of the Nx application to build using target
+
+  target:
+    required: true
+    description: Configuration name inside the plugin specified above for the specified application
 
   google-region:
     required: true
@@ -46,22 +51,8 @@ runs:
         username: oauth2accesstoken
         password: '${{ steps.auth.outputs.access_token }}'
 
-    - name: Install Nx CLI (if not using container-based job)
-      shell: bash
-      run: npm install -g nx
+    - uses: actions/checkout@v4
 
-    - name: Build Docker image using Nx target
+    - name: Build affected projects using Nx target
       shell: bash
-      run: |
-        npx nx run ${{ inputs.project }}:container
-
-    - name: Tag Docker Image
-      shell: bash
-      run: |
-        docker tag ${{ inputs.project }} ${{ inputs.image }}
-
-    - name: Push Docker Image
-      if: ${{ inputs.push == 'true' }}
-      shell: bash
-      run: |
-        docker push ${{ inputs.image }}
+      run: nx affected -t ${{ inputs.plugin }}:${{ inputs.target }}

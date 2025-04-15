@@ -1,0 +1,17 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v2.3.0
+  hooks:
+  - id: no-commit-to-branch
+    args:
+    - --branch
+    - main
+  - id: check-yaml
+    args:
+    - --allow-multiple-documents
+  - id: end-of-file-fixer
+    exclude: .*/README.md$
+  - id: trailing-whitespace
+    args:
+    - --markdown-linebreak-ext=md
+  - id: check-merge-conflict
