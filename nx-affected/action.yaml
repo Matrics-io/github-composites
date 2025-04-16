@@ -20,6 +20,56 @@ inputs:
     default: "false"
     description: Use Nx Cloud features
 
+  setup-node:
+    default: "true"
+    required: true
+    description: Setup node
+
+  setup-pnpm:
+    default: "true"
+    required: true
+    description: Setup pnpm
+
+  setup-nx:
+    default: "true"
+    required: true
+    description: Setup Nx CLI
+
+  pnpm-version:
+    default: "10"
+    required: true
+    description: Pnpm version
+
+  install-dependencies:
+    default: "true"
+    required: true
+    description: Install dependencies
+
+  nx-version:
+    default: "20"
+    required: true
+    description: Nx version
+
+  node-version:
+    default: "22"
+    description: Node version
+    required: true
+
+  node-cache:
+    required: true
+    default: pnpm
+    description: Node cache
+
+  node-cache-dependency-path:
+    required: true
+    default: package.json
+    description: Node cache dependency path. This will be used to identify cached dependencies
+
+  docker-login:
+    required: true
+    default: "true"
+    description: Docker login in Google Artifacts
+
   google-region:
     required: true
     description: GCP region (e.g. us-central1)
@@ -31,24 +81,41 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
     - name: Docker Login to GCP Artifact Registry
       uses: docker/login-action@v3
+      if: ${{ inputs.docker-login == 'true' }}
       with:
         registry: ${{ inputs.google-region }}-docker.pkg.dev
         username: _json_key
         password: ${{ inputs.google-credentials }}
 
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        filter: tree:0
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}
+
+    - name: Setup Node
+      if: ${{ inputs.setup-node == 'true' }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.node-cache }}
+        cache-dependency-path: ${{ inputs.node-cache-dependency-path }}
+    
+    - name: Install dependencies
+      if: ${{ inputs.install-dependencies }}
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
     - uses: nrwl/nx-set-shas@v4
       with:
         main-branch-name: ${{ inputs.base }}
-    
-    - name: Checkout
-      uses: actions/checkout@v4
 
     - name: Build affected projects using Nx configuration
       shell: bash
