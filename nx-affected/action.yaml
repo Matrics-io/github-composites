@@ -10,7 +10,6 @@ inputs:
   target:
     description: Nx affected --target argument
     required: true
-    default: container
 
   base:
     description: Nx affected --base argument
@@ -47,4 +46,4 @@ runs:
       shell: bash
       env:
         NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
-      run: nx affected --base ${{ inputs.base }} --head ${{ inputs.head }} --target=${{ inputs.target }} ${{ inputs.args }}
+      run: nx affected --base '${{ inputs.base }}' --head '${{ inputs.head }}' --target='${{ inputs.target }}' ${{ inputs.args }}
