@@ -47,4 +47,4 @@ runs:
       shell: bash
       env:
         NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
-      run: nx affected  ${{ inputs.args }} --base ${{ inputs.base }} --head ${{ inputs.head }} --target=${{ inputs.target }}
+      run: nx affected --base ${{ inputs.base }} --head ${{ inputs.head }} --target=${{ inputs.target }} ${{ inputs.args }}
