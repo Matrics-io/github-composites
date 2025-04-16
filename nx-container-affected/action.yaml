@@ -3,18 +3,18 @@ name: Nx Docker Build & Push
 description: Build and push Docker images using Nx and GCP Artifact Registry
 
 inputs:
-  plugin:
+  args:
+    description: Nx affected arguments
     required: true
-    description: Nx plugin that is going to be run to build the images
-    default: container
-
-  base-branch:
-    required: true
-    description: Base branch to check changed files
 
   target:
+    description: Nx affected --target argument
     required: true
-    description: Configuration name inside the plugin specified above for the specified application
+    default: container
+
+  base:
+    description: Nx affected --base argument
+    required: true
 
   use-nx-cloud:
     required: true
@@ -41,10 +41,10 @@ runs:
 
     - uses: nrwl/nx-set-shas@v4
       with:
-        main-branch-name: ${{ inputs.base-branch }}
+        main-branch-name: ${{ inputs.base }}
 
-    - name: Build affected projects using Nx target
+    - name: Build affected projects using Nx configuration
       shell: bash
       env:
         NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
-      run: nx run heartplus:container:${{ inputs.target }}
+      run: nx affected  ${{ inputs.args }} --base ${{ inputs.base }} --head ${{ inputs.head }} --target=${{ inputs.target }}
