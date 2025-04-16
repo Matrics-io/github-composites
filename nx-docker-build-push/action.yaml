@@ -1,0 +1,51 @@
+name: Nx Docker Build & Push
+
+description: Build and push Docker images using Nx and GCP Artifact Registry
+
+inputs:
+  plugin:
+    required: true
+    description: Nx plugin that is going to be run to build the images
+    default: container
+
+  base-branch:
+    required: true
+    description: Base branch to check changed files
+
+  target:
+    required: true
+    description: Configuration name inside the plugin specified above for the specified application
+
+  use-nx-cloud:
+    required: true
+    default: "false"
+    description: Use Nx Cloud features
+
+  google-region:
+    required: true
+    description: GCP region (e.g. us-central1)
+
+  google-credentials:
+    required: true
+    description: GCP service account key in JSON format
+
+runs:
+  using: "composite"
+  steps:
+    - name: Docker Login to GCP Artifact Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.google-region }}-docker.pkg.dev
+        username: _json_key
+        password: ${{ inputs.google-credentials }}
+        ecr: false
+
+    - uses: nrwl/nx-set-shas@v4
+      with:
+        main-branch-name: ${{ inputs.base-branch }}
+
+    - name: Build affected projects using Nx target
+      shell: bash
+      env:
+        NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
+      run: nx run heartplus:container:${{ inputs.target }}
