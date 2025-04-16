@@ -13,7 +13,7 @@ inputs:
   container:
     required: true
     description: Cloud run service container name
-  
+
   region:
     required: true
     description: Cloud run service region
@@ -21,13 +21,13 @@ inputs:
   google-login:
     required: true
     description: Perform Google Auth
-    default: "false"
+    default: "true"
 
   setup-gcloud:
     required: true
     description: Setup GCloud
     default: "false"
-  
+
   google-credentials:
     required: true
     description: Google Credentials for AR access
@@ -48,16 +48,13 @@ runs:
       with:
         token_format: 'access_token'
         credentials_json: '${{ inputs.google-credentials }}'
-    
+
     - name: 'Set up Cloud SDK'
       if: ${{ inputs.setup-gcloud == 'true' }}
       uses: 'google-github-actions/setup-gcloud@v2'
       with:
         version: '>= 363.0.0'
 
-    - name: Cloud Run Deploy 
+    - name: Cloud Run Deploy
       shell: bash
       run: gcloud beta run services update '${{ inputs.service }}' --region '${{ inputs.region }}' --container '${{ inputs.container }}' --image '${{ inputs.image }}'
-
-        
-
