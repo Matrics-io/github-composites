@@ -46,7 +46,6 @@ runs:
     - uses: nrwl/nx-set-shas@v4
       with:
         main-branch-name: ${{ inputs.base }}
-        last-successful-event: ${{ input.last-successful-event }}
 
     - name: Build affected projects using Nx configuration
       shell: bash
