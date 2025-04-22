@@ -1,0 +1,30 @@
+name: Restart kubernetes deployment through ArgoCD API
+description: This action can restart a deployment / all deployments inside a ArgoCD application
+
+inputs:
+  install:
+    description: Install ArgoCD
+    default: 'false'
+  version:
+    description: ArgoCD client version
+    default: v2.14.10
+  argocd-server:
+    description: ArgoCD Server domain
+    required: true
+  argocd-auth-token:
+    description: ArgoCD auth token
+    required: true
+
+runs:
+  using: composite
+  steps:
+  - name: Install ArgoCD
+    shell: bash
+    if: ${{ inputs.install == 'true' }}
+    env:
+      VERSION: ${{ inputs.version }}
+    run: |
+      curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/download/$VERSION/argocd-linux-amd64
+      chmod 555 argocd-linux-amd64
+      mv argocd-linux-amd64 /usr/local/bin/argocd
+      rm argocd-linux-amd64
