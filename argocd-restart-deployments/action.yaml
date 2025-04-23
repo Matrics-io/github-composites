@@ -4,10 +4,16 @@ description: This action can restart a deployment / all deployments inside a Arg
 inputs:
   install:
     description: Install ArgoCD
-    default: 'false'
   version:
     description: ArgoCD client version
     default: v2.14.10
+  cluster:
+    description: ArgoCD cluster name that the application belongs to
+  application:
+    description: ArgoCD application that the deployment belongs to
+  kind:
+    description: ArgoCD resource type
+    default: Deployment
   argocd-server:
     description: ArgoCD Server domain
     required: true
@@ -28,6 +34,9 @@ runs:
       chmod 555 argocd-linux-amd64
       mv argocd-linux-amd64 /usr/local/bin/argocd
 
-  - name: ArgoCD Version
+  - name: Restart deployments
     shell: bash
-    run: argocd version --client
+    env:
+      ARGOCD_SERVER: ${{ inputs.argocd-server }}
+      ARGOCD_AUTH_TOKEN: ${{ inputs.argocd-auth-token }}
+    run: argocd app actions run ${{ inputs.cluster }}/${{ inputs.application }} restart --kind ${{ inputs.kind }}
