@@ -116,14 +116,16 @@ runs:
         filter: tree:0
 
     - name: Setup Go
+      if: ${{ inputs.setup-go == 'true' }}
       uses: actions/setup-go@v5
       with:
         go-version: ${{ inputs.go-version }}
 
     - name: Setup Python
+      if: ${{ inputs.setup-python == 'true' }}
       uses: actions/setup-python@v5
       with:
-        go-version: ${{ inputs.python-version }}
+        python-version: ${{ inputs.python-version }}
 
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
