@@ -20,6 +20,16 @@ inputs:
     default: "false"
     description: Use Nx Cloud features
 
+  setup-go:
+    default: "false"
+    required: true
+    description: Setup Go
+
+  setup-python:
+    default: "false"
+    required: true
+    description: Setup Python
+
   setup-node:
     default: "true"
     required: true
@@ -34,6 +44,16 @@ inputs:
     default: "true"
     required: true
     description: Setup Nx CLI
+
+  go-version:
+    default: ""
+    required: true
+    description: Go version
+
+  python-version:
+    default: ""
+    required: true
+    description: Python version
 
   pnpm-version:
     default: "10"
@@ -95,6 +115,16 @@ runs:
         fetch-depth: 0
         filter: tree:0
 
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        go-version: ${{ inputs.python-version }}
+
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
       with:
@@ -107,7 +137,7 @@ runs:
         node-version: ${{ inputs.node-version }}
         cache: ${{ inputs.node-cache }}
         cache-dependency-path: ${{ inputs.node-cache-dependency-path }}
-    
+
     - name: Install dependencies
       if: ${{ inputs.install-dependencies }}
       shell: bash
