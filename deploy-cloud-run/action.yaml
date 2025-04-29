@@ -41,8 +41,6 @@ outputs:
 runs:
   using: composite
   steps:
-  - uses: 'actions/checkout@v4'
-
   - name: Google Auth
     id: auth
     if: ${{ inputs.google-login == 'true' }}
@@ -59,4 +57,4 @@ runs:
 
   - name: Cloud Run Deploy
     shell: bash
-    run: gcloud beta run services update '${{ inputs.service }}' --region '${{ inputs.region }}' --container '${{ inputs.container }}' --image '${{ inputs.image }}'
+    run: gcloud beta run services update --project ${{ steps.auth.outputs.project_id }} '${{ inputs.service }}' --region '${{ inputs.region }}' --container '${{ inputs.container }}' --image '${{ inputs.image }}'
