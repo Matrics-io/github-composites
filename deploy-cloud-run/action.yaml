@@ -18,11 +18,6 @@ inputs:
     required: true
     description: Cloud run service region
 
-  google-project-id:
-    required: true
-    description: Google Project ID, required if google-login is false
-    default: ""
-
   google-login:
     required: true
     description: Perform Google Auth
