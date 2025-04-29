@@ -46,7 +46,7 @@ runs:
     if: ${{ inputs.google-login == 'true' }}
     uses: 'google-github-actions/auth@v2'
     with:
-      token_format: 'access_token'
+      # token_format: 'access_token'
       credentials_json: '${{ inputs.google-credentials }}'
 
   - name: 'Set up Cloud SDK'
