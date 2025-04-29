@@ -35,7 +35,7 @@ inputs:
 
 outputs:
   image:
-    description: Image built by this action
+    description: Image deployed by this action
     value: ${{ inputs.image }}
 
 runs:
@@ -48,7 +48,6 @@ runs:
     with:
       token_format: 'access_token'
       credentials_json: '${{ inputs.google-credentials }}'
-      export_environment_variables: true
 
   - name: 'Set up Cloud SDK'
     if: ${{ inputs.setup-gcloud == 'true' }}
