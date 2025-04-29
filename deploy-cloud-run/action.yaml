@@ -18,6 +18,11 @@ inputs:
     required: true
     description: Cloud run service region
 
+  google-project-id:
+    required: true
+    description: Google Project ID, required if google-login is false
+    default: ""
+
   google-login:
     required: true
     description: Perform Google Auth
@@ -41,20 +46,20 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Google Auth
-      id: auth
-      if: ${{ inputs.google-login == 'true' }}
-      uses: 'google-github-actions/auth@v2'
-      with:
-        token_format: 'access_token'
-        credentials_json: '${{ inputs.google-credentials }}'
+  - name: Google Auth
+    id: auth
+    if: ${{ inputs.google-login == 'true' }}
+    uses: 'google-github-actions/auth@v2'
+    with:
+      token_format: 'access_token'
+      credentials_json: '${{ inputs.google-credentials }}'
 
-    - name: 'Set up Cloud SDK'
-      if: ${{ inputs.setup-gcloud == 'true' }}
-      uses: 'google-github-actions/setup-gcloud@v2'
-      with:
-        version: '>= 363.0.0'
+  - name: 'Set up Cloud SDK'
+    if: ${{ inputs.setup-gcloud == 'true' }}
+    uses: 'google-github-actions/setup-gcloud@v2'
+    with:
+      version: '>= 363.0.0'
 
-    - name: Cloud Run Deploy
-      shell: bash
-      run: gcloud beta run services update '${{ inputs.service }}' --region '${{ inputs.region }}' --container '${{ inputs.container }}' --image '${{ inputs.image }}'
+  - name: Cloud Run Deploy
+    shell: bash
+    run: gcloud beta run services update '${{ inputs.service }}' --project ${{ inputs.google-login && inputs.google-project-id || steps.auth.outputs.project_id }} --region '${{ inputs.region }}' --container '${{ inputs.container }}' --image '${{ inputs.image }}'
