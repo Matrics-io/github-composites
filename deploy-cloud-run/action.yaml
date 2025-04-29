@@ -62,4 +62,4 @@ runs:
 
   - name: Cloud Run Deploy
     shell: bash
-    run: gcloud beta run services update '${{ inputs.service }}' --project ${{ inputs.google-login && inputs.google-project-id || steps.auth.outputs.project_id }} --region '${{ inputs.region }}' --container '${{ inputs.container }}' --image '${{ inputs.image }}'
+    run: gcloud beta run services update '${{ inputs.service }}' --project ${{ inputs.google-login && steps.auth.outputs.project_id || inputs.google-project-id }} --region '${{ inputs.region }}' --container '${{ inputs.container }}' --image '${{ inputs.image }}'
