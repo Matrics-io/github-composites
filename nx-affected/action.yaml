@@ -101,61 +101,61 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Docker Login to GCP Artifact Registry
-      uses: docker/login-action@v3
-      if: ${{ inputs.docker-login == 'true' }}
-      with:
-        registry: ${{ inputs.google-region }}-docker.pkg.dev
-        username: _json_key
-        password: ${{ inputs.google-credentials }}
+  - name: Docker Login to GCP Artifact Registry
+    uses: docker/login-action@v3
+    if: ${{ inputs.docker-login == 'true' }}
+    with:
+      registry: ${{ inputs.google-region }}-docker.pkg.dev
+      username: _json_key
+      password: ${{ inputs.google-credentials }}
 
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        filter: tree:0
+  - name: Checkout
+    uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+      filter: tree:0
 
-    - name: Setup Go
-      if: ${{ inputs.setup-go == 'true' }}
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ inputs.go-version }}
+  - name: Setup Go
+    if: ${{ inputs.setup-go == 'true' }}
+    uses: actions/setup-go@v5
+    with:
+      go-version: ${{ inputs.go-version }}
 
-    - name: Setup Python
-      if: ${{ inputs.setup-python == 'true' }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ inputs.python-version }}
+  - name: Setup Python
+    if: ${{ inputs.setup-python == 'true' }}
+    uses: actions/setup-python@v5
+    with:
+      python-version: ${{ inputs.python-version }}
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: ${{ inputs.pnpm-version }}
+  - name: Setup pnpm
+    uses: pnpm/action-setup@v4
+    with:
+      version: ${{ inputs.pnpm-version }}
 
-    - name: Setup Node
-      if: ${{ inputs.setup-node == 'true' }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ inputs.node-version }}
-        cache: ${{ inputs.node-cache }}
-        cache-dependency-path: ${{ inputs.node-cache-dependency-path }}
+  - name: Setup Node
+    if: ${{ inputs.setup-node == 'true' }}
+    uses: actions/setup-node@v3
+    with:
+      node-version: ${{ inputs.node-version }}
+      cache: ${{ inputs.node-cache }}
+      cache-dependency-path: ${{ inputs.node-cache-dependency-path }}
 
-    - name: Install dependencies
-      if: ${{ inputs.install-dependencies }}
-      shell: bash
-      run: pnpm install --frozen-lockfile
+  - name: Install dependencies
+    if: ${{ inputs.install-dependencies }}
+    shell: bash
+    run: pnpm install --frozen-lockfile
 
-    - name: Setup Nx
-      if: ${{ inputs.setup-nx == 'true' }}
-      shell: bash
-      run: npm install -g nx@${{ inputs.nx-version }}
+  - name: Setup Nx
+    if: ${{ inputs.setup-nx == 'true' }}
+    shell: bash
+    run: npm install -g nx@${{ inputs.nx-version }}
 
-    - uses: nrwl/nx-set-shas@v4
-      with:
-        main-branch-name: ${{ inputs.base }}
+  - uses: nrwl/nx-set-shas@v4
+    with:
+      main-branch-name: ${{ inputs.base }}
 
-    - name: Build affected projects using Nx configuration
-      shell: bash
-      env:
-        NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
-      run: nx affected --target='${{ inputs.target }}' ${{ inputs.args }}
+  - name: Build affected projects using Nx configuration
+    shell: bash
+    env:
+      NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
+    run: nx affected ${{ inputs.args }} --target='${{ inputs.target }}'
