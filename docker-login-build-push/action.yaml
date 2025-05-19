@@ -54,6 +54,16 @@ runs:
       shell: bash
       run: docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
 
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@0.30.0
+      with:
+        image-ref: ${{ inputs.image }}
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+        
     - name: Docker Push
       id: docker-push
       if: ${{ inputs.push == 'true' }}
