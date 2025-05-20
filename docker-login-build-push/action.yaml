@@ -48,6 +48,12 @@ inputs:
     description: Severity cutoff
     required: true
     default: "high"
+
+  cache-db:
+    description: Cache database
+    required: true
+    default: "true"
+
   # scan_format:
   #   description: Trivy output format
   #   required: false
@@ -98,7 +104,7 @@ runs:
       shell: bash
       run: docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
 
-    - name: Grype Scan
+    - name: Grype vulnerability scanner
       if: ${{ inputs.scan_image == 'true' }}
       uses: anchore/scan-action@v6
       with:
@@ -106,6 +112,7 @@ runs:
         output-format: ${{ inputs.output-format }}
         fail-build: ${{ inputs.fail-build }}
         severity-cutoff: ${{ inputs.severity-cutoff }}
+        cache-db: ${{ inputs.cache-db }}
     # - name: Run Trivy vulnerability scanner
     #   if: ${{ inputs.scan_image == 'true' }}
     #   uses: aquasecurity/trivy-action@0.30.0
