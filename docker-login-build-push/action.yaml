@@ -33,7 +33,21 @@ inputs:
     required: true
     default: 'true'
     description: Scan the builded image before push
+  
+  output-format:
+    description: Grype output format
+    required: true
+    default: "table"
+  
+  fail-build:
+    description: Fail build if vulnerabilities are found
+    required: true
+    default: "true"
 
+  severity-cutoff:
+    description: Severity cutoff
+    required: true
+    default: "high"
   # scan_format:
   #   description: Trivy output format
   #   required: false
@@ -89,7 +103,9 @@ runs:
       uses: anchore/scan-action@v6
       with:
         image: ${{ inputs.image }}
-        fail-build: true
+        output-format: ${{ inputs.output-format }}
+        fail-build: ${{ inputs.fail-build }}
+        severity-cutoff: ${{ inputs.severity-cutoff }}
     # - name: Run Trivy vulnerability scanner
     #   if: ${{ inputs.scan_image == 'true' }}
     #   uses: aquasecurity/trivy-action@0.30.0
