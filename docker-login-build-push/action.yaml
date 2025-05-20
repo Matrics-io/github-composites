@@ -34,50 +34,25 @@ inputs:
     default: 'true'
     description: Scan the builded image before push
   
-  output-format:
+  scan_output_format:
     description: Grype output format
     required: true
     default: "table"
   
-  fail-build:
+  scan_fail_build:
     description: Fail build if vulnerabilities are found
     required: true
     default: "true"
 
-  severity-cutoff:
+  scan_severity_cutoff:
     description: Severity cutoff
     required: true
     default: "high"
 
-  cache-db:
+  scan_cache_db:
     description: Cache database
     required: true
     default: "true"
-
-  # scan_format:
-  #   description: Trivy output format
-  #   required: false
-  #   default: "table"
-
-  # scan_exit_code:
-  #   description: Exit code threshold (fail build if vulnerabilities ≥ this)
-  #   required: false
-  #   default: "1"
-
-  # scan_ignore_unfixed:
-  #   description: Ignore unfixed vulns
-  #   required: false
-  #   default: "true"
-
-  # scan_vuln_type:
-  #   description: Vulnerability types to scan
-  #   required: false
-  #   default: "os,library"
-
-  # scan_severity:
-  #   description: Severity levels that will cause the action to fail
-  #   required: false
-  #   default: "CRITICAL,HIGH"
 
   push:
     required: true
@@ -105,26 +80,16 @@ runs:
       run: docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
 
     - name: Grype vulnerability scanner
+      id: scan-image
       if: ${{ inputs.scan_image == 'true' }}
       uses: anchore/scan-action@v6
       with:
         image: ${{ inputs.image }}
-        output-format: ${{ inputs.output-format }}
-        fail-build: ${{ inputs.fail-build }}
-        severity-cutoff: ${{ inputs.severity-cutoff }}
-        cache-db: ${{ inputs.cache-db }}
-    # - name: Run Trivy vulnerability scanner
-    #   if: ${{ inputs.scan_image == 'true' }}
-    #   uses: aquasecurity/trivy-action@0.30.0
-    #   with:
-    #     image-ref: ${{ inputs.image }}
-    #     format: ${{ inputs.scan_format }}
-    #     exit-code: ${{ inputs.scan_exit_code }}
-    #     ignore-unfixed: ${{ inputs.scan_ignore_unfixed }}
-    #     vuln-type: ${{ inputs.scan_vuln_type }}
-    #     severity: ${{ inputs.scan_severity }}
-
-        
+        output-format: ${{ inputs.scan_output_format }}
+        fail-build: ${{ inputs.scan_fail_build }}
+        severity-cutoff: ${{ inputs.scan_severity_cutoff }}
+        cache-db: ${{ inputs.scan_cache_db }}
+    
     - name: Docker Push
       id: docker-push
       if: ${{ inputs.push == 'true' }}
