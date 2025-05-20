@@ -29,6 +29,31 @@ inputs:
     required: true
     description: Google Credentials for AR access
 
+  scan_image:
+    required: true
+    default: 'true'
+    description: Scan the builded image before push
+  
+  scan_output_format:
+    description: Grype output format
+    required: true
+    default: "table"
+  
+  scan_fail_build:
+    description: Fail build if vulnerabilities are found
+    required: true
+    default: "true"
+
+  scan_severity_cutoff:
+    description: Severity cutoff
+    required: true
+    default: "high"
+
+  scan_cache_db:
+    description: Cache database
+    required: true
+    default: "true"
+
   push:
     required: true
     default: "true"
@@ -54,6 +79,17 @@ runs:
       shell: bash
       run: docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
 
+    - name: Grype vulnerability scanner
+      id: scan-image
+      if: ${{ inputs.scan_image == 'true' }}
+      uses: anchore/scan-action@v6
+      with:
+        image: ${{ inputs.image }}
+        output-format: ${{ inputs.scan_output_format }}
+        fail-build: ${{ inputs.scan_fail_build }}
+        severity-cutoff: ${{ inputs.scan_severity_cutoff }}
+        cache-db: ${{ inputs.scan_cache_db }}
+    
     - name: Docker Push
       id: docker-push
       if: ${{ inputs.push == 'true' }}
