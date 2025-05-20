@@ -34,30 +34,30 @@ inputs:
     default: 'true'
     description: Scan the builded image before push
 
-  scan_format:
-    description: Trivy output format
-    required: false
-    default: "table"
+  # scan_format:
+  #   description: Trivy output format
+  #   required: false
+  #   default: "table"
 
-  scan_exit_code:
-    description: Exit code threshold (fail build if vulnerabilities ≥ this)
-    required: false
-    default: "1"
+  # scan_exit_code:
+  #   description: Exit code threshold (fail build if vulnerabilities ≥ this)
+  #   required: false
+  #   default: "1"
 
-  scan_ignore_unfixed:
-    description: Ignore unfixed vulns
-    required: false
-    default: "true"
+  # scan_ignore_unfixed:
+  #   description: Ignore unfixed vulns
+  #   required: false
+  #   default: "true"
 
-  scan_vuln_type:
-    description: Vulnerability types to scan
-    required: false
-    default: "os,library"
+  # scan_vuln_type:
+  #   description: Vulnerability types to scan
+  #   required: false
+  #   default: "os,library"
 
-  scan_severity:
-    description: Severity levels that will cause the action to fail
-    required: false
-    default: "CRITICAL,HIGH"
+  # scan_severity:
+  #   description: Severity levels that will cause the action to fail
+  #   required: false
+  #   default: "CRITICAL,HIGH"
 
   push:
     required: true
@@ -84,16 +84,22 @@ runs:
       shell: bash
       run: docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
 
-    - name: Run Trivy vulnerability scanner
+    - name: Grype Scan
       if: ${{ inputs.scan_image == 'true' }}
-      uses: aquasecurity/trivy-action@0.30.0
+      uses: anchore/scan-action@v6
       with:
-        image-ref: ${{ inputs.image }}
-        format: ${{ inputs.scan_format }}
-        exit-code: ${{ inputs.scan_exit_code }}
-        ignore-unfixed: ${{ inputs.scan_ignore_unfixed }}
-        vuln-type: ${{ inputs.scan_vuln_type }}
-        severity: ${{ inputs.scan_severity }}
+        image: ${{ inputs.image }}
+        fail-build: true
+    # - name: Run Trivy vulnerability scanner
+    #   if: ${{ inputs.scan_image == 'true' }}
+    #   uses: aquasecurity/trivy-action@0.30.0
+    #   with:
+    #     image-ref: ${{ inputs.image }}
+    #     format: ${{ inputs.scan_format }}
+    #     exit-code: ${{ inputs.scan_exit_code }}
+    #     ignore-unfixed: ${{ inputs.scan_ignore_unfixed }}
+    #     vuln-type: ${{ inputs.scan_vuln_type }}
+    #     severity: ${{ inputs.scan_severity }}
 
         
     - name: Docker Push
