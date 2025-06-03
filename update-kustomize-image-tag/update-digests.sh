@@ -59,22 +59,12 @@ parse_images() {
         exit 1
     fi
 
-    # Write images to temporary file and parse with yq
+    # Write images to temporary file
     echo "$INPUT_IMAGES" > /tmp/images.yaml
 
-    # Convert to JSON array for processing - direct YAML format
-    IMAGES=$(yq e 'to_entries | .[] | {"name": .key, "imageRef": .value}' /tmp/images.yaml -o=json | jq -s '.')
-
-    if [[ "$IMAGES" == "[]" || "$IMAGES" == "null" ]]; then
-        log_error "No valid images found in input"
-        exit 1
-    fi
-
-    local image_count=$(echo "$IMAGES" | jq length)
+    # Get image count for logging
+    local image_count=$(echo "$INPUT_IMAGES" | yq e 'length' -)
     log_success "Found $image_count images to update"
-
-    # Log the images for debugging
-    echo "$IMAGES" | jq -r '.[] | "  - \(.name): \(.imageRef)"'
 }
 
 # Configure git for the repository
@@ -113,29 +103,28 @@ update_images() {
     local updated_images="[]"
     local changes_made="false"
 
-    # Process each image
-    echo "$IMAGES" | jq -c '.[]' | while IFS= read -r image; do
-        local image_name
-        local image_ref
+    # Process each image directly from YAML
+    while IFS= read -r line; do
+        if [[ -n "$line" ]]; then
+            local image_name=$(echo "$line" | cut -d'=' -f1)
+            local image_ref=$(echo "$line" | cut -d'=' -f2-)
 
-        image_name=$(echo "$image" | jq -r '.name')
-        image_ref=$(echo "$image" | jq -r '.imageRef')
+            log_info "Setting $image_name to $image_ref"
 
-        log_info "Setting $image_name to $image_ref"
+            # Update with kustomize
+            kustomize edit set image "$line"
 
-        # Update with kustomize - set the image directly
-        kustomize edit set image "$image_name=$image_ref"
+            # Add to updated images list
+            local updated_image
+            updated_image=$(jq -n \
+                --arg name "$image_name" \
+                --arg imageRef "$image_ref" \
+                '{name: $name, imageRef: $imageRef}')
 
-        # Add to updated images list
-        local updated_image
-        updated_image=$(jq -n \
-            --arg name "$image_name" \
-            --arg imageRef "$image_ref" \
-            '{name: $name, imageRef: $imageRef}')
-
-        updated_images=$(echo "$updated_images" | jq ". + [$updated_image]")
-        changes_made="true"
-    done
+            updated_images=$(echo "$updated_images" | jq ". + [$updated_image]")
+            changes_made="true"
+        fi
+    done < <(echo "$INPUT_IMAGES" | yq e 'to_entries | .[] | .key + "=" + .value' -)
 
     # Write outputs to files (since we're in a subshell)
     echo "$updated_images" > /tmp/updated_images.json
