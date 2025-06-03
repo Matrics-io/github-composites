@@ -23,7 +23,7 @@ inputs:
   commit-message:
     description: 'Commit message for the update'
     required: false
-    default: 'Update image digests from Google Artifact Registry'
+    default: 'Update image '
 
 outputs:
   updated-images:
