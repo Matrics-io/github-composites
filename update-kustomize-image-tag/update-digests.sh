@@ -100,6 +100,14 @@ update_images() {
     # Change to target kustomization directory
     cd "$target_kustomization_path"
 
+    # Show current kustomization content for debugging
+    log_info "Current kustomization content:"
+    if [[ -f "kustomization.yaml" ]]; then
+        cat kustomization.yaml | head -20
+    elif [[ -f "kustomization.yml" ]]; then
+        cat kustomization.yml | head -20
+    fi
+
     local updated_count=0
 
     # Process each image directly from YAML
@@ -111,11 +119,16 @@ update_images() {
             log_info "Setting $image_name to $image_ref"
 
             # Update with kustomize
-            kustomize edit set image "$line"
-
-            # Track updated images
-            echo "$image_name=$image_ref" >> /tmp/updated_images.txt
-            ((updated_count++))
+            if kustomize edit set image "$line" 2>/tmp/kustomize_error.log; then
+                log_success "Successfully set $image_name"
+                # Track updated images
+                echo "$image_name=$image_ref" >> /tmp/updated_images.txt
+                ((updated_count++))
+            else
+                log_error "Failed to set $image_name"
+                log_error "Kustomize error: $(cat /tmp/kustomize_error.log 2>/dev/null || echo 'Unknown error')"
+                log_info "Continuing with other images..."
+            fi
         fi
     done < <(echo "$INPUT_IMAGES" | yq e 'to_entries | .[] | .key + "=" + .value' -)
 
