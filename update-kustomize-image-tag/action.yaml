@@ -1,0 +1,68 @@
+name: 'Update Kustomize Image Digests from GAR'
+description: 'Updates image digests in kustomization files from Google Artifact Registry'
+author: '91Life'
+
+inputs:
+  repository:
+    description: 'Target repository (format: owner/repo)'
+    required: true
+
+  token:
+    description: 'GitHub token with repository access'
+    required: true
+
+  images:
+    description: 'YAML string of images in format: name: image:tag'
+    required: true
+
+  target-kustomization-path:
+    description: 'Path to the kustomization directory in target repository'
+    required: true
+    default: '.'
+
+  google-region:
+    description: 'Google region where Artifact Registry is located'
+    required: true
+    default: 'us-central1'
+
+  repository-name:
+    description: 'Artifact Registry repository name'
+    required: true
+
+  commit-message:
+    description: 'Commit message for the update'
+    required: false
+    default: 'Update image digests from Google Artifact Registry'
+
+outputs:
+  updated-images:
+    description: 'JSON array of updated images'
+    value: ${{ steps.update-digests.outputs.updated-images }}
+
+  changes-made:
+    description: 'Whether any changes were made'
+    value: ${{ steps.update-digests.outputs.changes-made }}
+
+runs:
+  using: 'composite'
+  steps:
+  - name: Checkout target repository
+    uses: actions/checkout@v4
+    with:
+      repository: ${{ inputs.repository }}
+      token: ${{ inputs.token }}
+      path: target-repo
+
+  - name: Run kustomize digest updater
+    id: update-digests
+    shell: bash
+    working-directory: target-repo
+    run: ${{ github.action_path }}/update-digests.sh
+    env:
+      INPUT_REPOSITORY: ${{ inputs.repository }}
+      INPUT_TOKEN: ${{ inputs.token }}
+      INPUT_IMAGES: ${{ inputs.images }}
+      INPUT_TARGET_KUSTOMIZATION_PATH: ${{ inputs.target-kustomization-path }}
+      INPUT_GOOGLE_REGION: ${{ inputs.google-region }}
+      INPUT_REPOSITORY_NAME: ${{ inputs.repository-name }}
+      INPUT_COMMIT_MESSAGE: ${{ inputs.commit-message }}
