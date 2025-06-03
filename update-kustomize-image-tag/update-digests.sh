@@ -100,8 +100,7 @@ update_images() {
     # Change to target kustomization directory
     cd "$target_kustomization_path"
 
-    local updated_images="[]"
-    local changes_made="false"
+    local updated_count=0
 
     # Process each image directly from YAML
     while IFS= read -r line; do
@@ -114,21 +113,19 @@ update_images() {
             # Update with kustomize
             kustomize edit set image "$line"
 
-            # Add to updated images list
-            local updated_image
-            updated_image=$(jq -n \
-                --arg name "$image_name" \
-                --arg imageRef "$image_ref" \
-                '{name: $name, imageRef: $imageRef}')
-
-            updated_images=$(echo "$updated_images" | jq ". + [$updated_image]")
-            changes_made="true"
+            # Track updated images
+            echo "$image_name=$image_ref" >> /tmp/updated_images.txt
+            ((updated_count++))
         fi
     done < <(echo "$INPUT_IMAGES" | yq e 'to_entries | .[] | .key + "=" + .value' -)
 
-    # Write outputs to files (since we're in a subshell)
-    echo "$updated_images" > /tmp/updated_images.json
-    echo "$changes_made" > /tmp/changes_made.txt
+    # Write simple outputs
+    echo "$updated_count" > /tmp/updated_count.txt
+    if [[ $updated_count -gt 0 ]]; then
+        echo "true" > /tmp/changes_made.txt
+    else
+        echo "false" > /tmp/changes_made.txt
+    fi
 
     # Return to repo root
     cd ..
@@ -136,15 +133,15 @@ update_images() {
 
 # Commit and push changes
 commit_and_push() {
-    local updated_images
+    local updated_count
     local changes_made
 
-    updated_images=$(cat /tmp/updated_images.json 2>/dev/null || echo "[]")
+    updated_count=$(cat /tmp/updated_count.txt 2>/dev/null || echo "0")
     changes_made=$(cat /tmp/changes_made.txt 2>/dev/null || echo "false")
 
     if [[ "$changes_made" != "true" ]]; then
         log_info "No changes to commit"
-        echo "updated-images=$updated_images" >> "$GITHUB_OUTPUT"
+        echo "updated-count=$updated_count" >> "$GITHUB_OUTPUT"
         echo "changes-made=false" >> "$GITHUB_OUTPUT"
         return 0
     fi
@@ -154,7 +151,7 @@ commit_and_push() {
     # Check if there are actual git changes
     if git diff --quiet && git diff --staged --quiet; then
         log_info "No git changes detected"
-        echo "updated-images=$updated_images" >> "$GITHUB_OUTPUT"
+        echo "updated-count=$updated_count" >> "$GITHUB_OUTPUT"
         echo "changes-made=false" >> "$GITHUB_OUTPUT"
         return 0
     fi
@@ -165,13 +162,14 @@ commit_and_push() {
     # Create commit message
     local commit_message="$INPUT_COMMIT_MESSAGE"
 
-    if [[ "$updated_images" != "[]" ]]; then
+    if [[ -f /tmp/updated_images.txt ]]; then
         commit_message="$commit_message
 
 Updated images:"
-        echo "$updated_images" | jq -r '.[] | "- \(.name): \(.imageRef)"' >> /tmp/commit_addendum.txt
-        commit_message="$commit_message
-$(cat /tmp/commit_addendum.txt)"
+        while IFS= read -r line; do
+            commit_message="$commit_message
+- $line"
+        done < /tmp/updated_images.txt
     fi
 
     # Commit changes
@@ -183,12 +181,10 @@ $(cat /tmp/commit_addendum.txt)"
     log_success "Changes pushed to repository"
 
     # Set outputs
-    echo "updated-images=$updated_images" >> "$GITHUB_OUTPUT"
+    echo "updated-count=$updated_count" >> "$GITHUB_OUTPUT"
     echo "changes-made=true" >> "$GITHUB_OUTPUT"
 
-    local num_updated
-    num_updated=$(echo "$updated_images" | jq length)
-    log_success "Successfully updated $num_updated images"
+    log_success "Successfully updated $updated_count images"
 }
 
 # Main execution

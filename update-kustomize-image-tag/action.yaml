@@ -31,9 +31,9 @@ inputs:
     default: 'Update image '
 
 outputs:
-  updated-images:
-    description: 'JSON array of updated images'
-    value: ${{ steps.update-digests.outputs.updated-images }}
+  updated-count:
+    description: 'Number of images updated'
+    value: ${{ steps.update-digests.outputs.updated-count }}
 
   changes-made:
     description: 'Whether any changes were made'
