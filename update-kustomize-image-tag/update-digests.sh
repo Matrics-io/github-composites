@@ -132,6 +132,16 @@ update_images() {
         fi
     done < <(echo "$INPUT_IMAGES" | yq e 'to_entries | .[] | .key + "=" + .value' -)
 
+    log_info "Finished processing all images. Updated count: $updated_count"
+
+    # Show updated kustomization content
+    log_info "Updated kustomization content (last 10 lines):"
+    if [[ -f "kustomization.yaml" ]]; then
+        tail -10 kustomization.yaml
+    elif [[ -f "kustomization.yml" ]]; then
+        tail -10 kustomization.yml
+    fi
+
     # Write simple outputs
     echo "$updated_count" > /tmp/updated_count.txt
     if [[ $updated_count -gt 0 ]]; then
@@ -140,17 +150,24 @@ update_images() {
         echo "false" > /tmp/changes_made.txt
     fi
 
+    log_info "Returning to repo root..."
     # Return to repo root
     cd ..
+
+    log_info "Update images function completed successfully"
 }
 
 # Commit and push changes
 commit_and_push() {
+    log_info "Starting commit and push process..."
+
     local updated_count
     local changes_made
 
     updated_count=$(cat /tmp/updated_count.txt 2>/dev/null || echo "0")
     changes_made=$(cat /tmp/changes_made.txt 2>/dev/null || echo "false")
+
+    log_info "Read updated_count: $updated_count, changes_made: $changes_made"
 
     if [[ "$changes_made" != "true" ]]; then
         log_info "No changes to commit"
@@ -162,6 +179,7 @@ commit_and_push() {
     log_info "Committing changes..."
 
     # Check if there are actual git changes
+    log_info "Checking for git changes..."
     if git diff --quiet && git diff --staged --quiet; then
         log_info "No git changes detected"
         echo "updated-count=$updated_count" >> "$GITHUB_OUTPUT"
@@ -169,10 +187,14 @@ commit_and_push() {
         return 0
     fi
 
+    log_info "Git changes detected, proceeding with commit..."
+
     # Stage changes
+    log_info "Staging changes..."
     git add .
 
     # Create commit message
+    log_info "Creating commit message..."
     local commit_message="$INPUT_COMMIT_MESSAGE"
 
     if [[ -f /tmp/updated_images.txt ]]; then
@@ -185,15 +207,28 @@ Updated images:"
         done < /tmp/updated_images.txt
     fi
 
+    log_info "Commit message created"
+
     # Commit changes
-    git commit -m "$commit_message"
-    log_success "Changes committed"
+    log_info "Executing git commit..."
+    if git commit -m "$commit_message"; then
+        log_success "Changes committed"
+    else
+        log_error "Failed to commit changes"
+        return 1
+    fi
 
     # Push changes
-    git push origin HEAD
-    log_success "Changes pushed to repository"
+    log_info "Executing git push..."
+    if git push origin HEAD; then
+        log_success "Changes pushed to repository"
+    else
+        log_error "Failed to push changes"
+        return 1
+    fi
 
     # Set outputs
+    log_info "Setting GitHub outputs..."
     echo "updated-count=$updated_count" >> "$GITHUB_OUTPUT"
     echo "changes-made=true" >> "$GITHUB_OUTPUT"
 
