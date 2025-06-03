@@ -71,7 +71,7 @@ parse_images() {
     fi
 
     local image_count=$(echo "$IMAGES" | jq length)
-    log_success "Found $image_count images to check"
+    log_success "Found $image_count images to update"
 
     # Log the images for debugging
     echo "$IMAGES" | jq -r '.[] | "  - \(.name): \(.imageRef)"'
@@ -88,19 +88,9 @@ configure_git() {
     log_success "Git configured"
 }
 
-# Get image digest from Google Artifact Registry
-get_image_digest() {
-    local image_url="$1"
-
-    local digest
-    digest=$(docker manifest inspect "$image_url" 2>/dev/null | jq -r '.config.digest' 2>/dev/null || echo "")
-
-    echo "$digest"
-}
-
-# Update image digests
-update_image_digests() {
-    log_info "Updating image digests..."
+# Update images in kustomization
+update_images() {
+    log_info "Updating images in kustomization..."
 
     local target_kustomization_path="$INPUT_TARGET_KUSTOMIZATION_PATH"
 
@@ -131,32 +121,17 @@ update_image_digests() {
         image_name=$(echo "$image" | jq -r '.name')
         image_ref=$(echo "$image" | jq -r '.imageRef')
 
-        log_info "Checking $image_name ($image_ref)"
+        log_info "Setting $image_name to $image_ref"
 
-        # Get latest digest
-        local latest_digest
-        latest_digest=$(get_image_digest "$image_ref")
-
-        if [[ -z "$latest_digest" ]]; then
-            log_warning "Could not get digest for $image_ref"
-            continue
-        fi
-
-        echo "   Latest digest: ${latest_digest:0:16}..."
-
-        # Always update with the latest digest (no comparison with current digest)
-        log_info "Setting $image_name to use digest from $image_ref"
-
-        # Update with kustomize - use the full image reference with digest
-        kustomize edit set image "$image_name=${image_ref}@${latest_digest}"
+        # Update with kustomize - set the image directly
+        kustomize edit set image "$image_name=$image_ref"
 
         # Add to updated images list
         local updated_image
         updated_image=$(jq -n \
             --arg name "$image_name" \
             --arg imageRef "$image_ref" \
-            --arg digest "$latest_digest" \
-            '{name: $name, imageRef: $imageRef, digest: $digest}')
+            '{name: $name, imageRef: $imageRef}')
 
         updated_images=$(echo "$updated_images" | jq ". + [$updated_image]")
         changes_made="true"
@@ -205,7 +180,7 @@ commit_and_push() {
         commit_message="$commit_message
 
 Updated images:"
-        echo "$updated_images" | jq -r '.[] | "- \(.name): \(.imageRef)@\(.digest[0:12])..."' >> /tmp/commit_addendum.txt
+        echo "$updated_images" | jq -r '.[] | "- \(.name): \(.imageRef)"' >> /tmp/commit_addendum.txt
         commit_message="$commit_message
 $(cat /tmp/commit_addendum.txt)"
     fi
@@ -214,7 +189,7 @@ $(cat /tmp/commit_addendum.txt)"
     git commit -m "$commit_message"
     log_success "Changes committed"
 
-    # Push directly to main
+    # Push changes
     git push origin HEAD
     log_success "Changes pushed to repository"
 
@@ -229,7 +204,7 @@ $(cat /tmp/commit_addendum.txt)"
 
 # Main execution
 main() {
-    log_info "🚀 Starting kustomize digest update process..."
+    log_info "🚀 Starting kustomize image update process..."
 
     # Validate inputs
     if [[ -z "$INPUT_REPOSITORY" || -z "$INPUT_TOKEN" || -z "$INPUT_IMAGES" ]]; then
@@ -246,8 +221,8 @@ main() {
     # Configure git for the repository
     configure_git
 
-    # Update image digests
-    update_image_digests
+    # Update images
+    update_images
 
     # Commit and push changes
     commit_and_push
