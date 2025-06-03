@@ -20,11 +20,6 @@ inputs:
     required: true
     default: '.'
 
-  google-region:
-    description: 'Google region where Artifact Registry is located'
-    required: true
-    default: 'us-central1'
-
   repository-name:
     description: 'Artifact Registry repository name'
     required: true
@@ -63,6 +58,5 @@ runs:
       INPUT_TOKEN: ${{ inputs.token }}
       INPUT_IMAGES: ${{ inputs.images }}
       INPUT_TARGET_KUSTOMIZATION_PATH: ${{ inputs.target-kustomization-path }}
-      INPUT_GOOGLE_REGION: ${{ inputs.google-region }}
       INPUT_REPOSITORY_NAME: ${{ inputs.repository-name }}
       INPUT_COMMIT_MESSAGE: ${{ inputs.commit-message }}
