@@ -7,6 +7,11 @@ inputs:
     description: 'Target repository (format: owner/repo)'
     required: true
 
+  branch:
+    description: 'Target branch to update'
+    required: true
+    default: 'main'
+
   token:
     description: 'GitHub token with repository access'
     required: true
@@ -41,6 +46,7 @@ runs:
     uses: actions/checkout@v4
     with:
       repository: ${{ inputs.repository }}
+      ref: ${{ inputs.branch }}
       token: ${{ inputs.token }}
       path: target-repo
 
