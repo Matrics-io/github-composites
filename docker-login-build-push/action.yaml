@@ -35,7 +35,7 @@ inputs:
     description: Scan the builded image before push
   
   scan_output_format:
-    description: Grype output format
+    description: Trivy output format
     required: true
     default: "table"
   
@@ -45,14 +45,24 @@ inputs:
     default: "true"
 
   scan_severity_cutoff:
-    description: Severity cutoff
+    description: Severity cutoff (UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL)
     required: true
-    default: "high"
+    default: "HIGH"
 
-  scan_cache_db:
-    description: Cache database
+  scan_vuln_type:
+    description: Vulnerability types to scan for (os,library)
+    required: true
+    default: "os,library"
+
+  scan_license:
+    description: Enable license scanning
     required: true
     default: "true"
+
+  scan_license_ignore:
+    description: License types to ignore (comma-separated)
+    required: true
+    default: ""
 
   push:
     required: true
@@ -79,16 +89,35 @@ runs:
       shell: bash
       run: docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
 
-    - name: Grype vulnerability scanner
-      id: scan-image
+    - name: Install Trivy
       if: ${{ inputs.scan_image == 'true' }}
-      uses: anchore/scan-action@v6
-      with:
-        image: ${{ inputs.image }}
-        output-format: ${{ inputs.scan_output_format }}
-        fail-build: ${{ inputs.scan_fail_build }}
-        severity-cutoff: ${{ inputs.scan_severity_cutoff }}
-        cache-db: ${{ inputs.scan_cache_db }}
+      shell: bash
+      run: |
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.63.0
+
+    - name: Trivy vulnerability scanner
+      id: scan-image-vuln
+      if: ${{ inputs.scan_image == 'true' }}
+      shell: bash
+      run: |
+        trivy image \
+          --format ${{ inputs.scan_output_format }} \
+          --exit-code ${{ inputs.scan_fail_build == 'true' && '1' || '0' }} \
+          --severity ${{ inputs.scan_severity_cutoff }} \
+          --vuln-type ${{ inputs.scan_vuln_type }} \
+          '${{ inputs.image }}'
+
+    - name: Trivy license scanner
+      id: scan-image-license
+      if: ${{ inputs.scan_image == 'true' && inputs.scan_license == 'true' }}
+      shell: bash
+      run: |
+        trivy image \
+          --format ${{ inputs.scan_output_format }} \
+          --exit-code ${{ inputs.scan_fail_build == 'true' && '1' || '0' }} \
+          --scanners license \
+          ${{ inputs.scan_license_ignore != '' && format('--license-ignore {0}', inputs.scan_license_ignore) || '' }} \
+          '${{ inputs.image }}'
     
     - name: Docker Push
       id: docker-push
