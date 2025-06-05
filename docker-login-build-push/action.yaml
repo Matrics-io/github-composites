@@ -59,7 +59,7 @@ inputs:
     required: true
     default: "true"
 
-  scan_license_ignore:
+  ignored-licenses:
     description: License types to ignore (comma-separated)
     required: true
     default: ""
@@ -116,7 +116,7 @@ runs:
           --format ${{ inputs.scan_output_format }} \
           --exit-code ${{ inputs.scan_fail_build == 'true' && '1' || '0' }} \
           --scanners license \
-          ${{ inputs.scan_license_ignore != '' && format('--license-ignore {0}', inputs.scan_license_ignore) || '' }} \
+          ${{ inputs.ignored-licenses != '' && format('--ignored-licenses {0}', inputs.ignored-licenses) || '' }} \
           '${{ inputs.image }}'
     
     - name: Docker Push
