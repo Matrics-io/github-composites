@@ -38,7 +38,7 @@ install_tools() {
     # Install yq
     if ! command -v yq &> /dev/null; then
         log_info "Installing yq..."
-        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+        sudo curl -L -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
         sudo chmod +x /usr/local/bin/yq
         log_success "yq installed"
     else
