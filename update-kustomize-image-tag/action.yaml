@@ -1,0 +1,63 @@
+name: 'Update Kustomize Image Digests from GAR'
+description: 'Updates image digests in kustomization files from Google Artifact Registry'
+author: '91Life'
+
+inputs:
+  repository:
+    description: 'Target repository (format: owner/repo)'
+    required: true
+
+  branch:
+    description: 'Target branch to update'
+    required: true
+    default: 'main'
+
+  token:
+    description: 'GitHub token with repository access'
+    required: true
+
+  images:
+    description: 'YAML string of images in format: name: image:tag'
+    required: true
+
+  kustomization-path:
+    description: 'Path to the kustomization directory in target repository'
+    required: true
+    default: '.'
+
+  commit-message:
+    description: 'Commit message for the update'
+    required: false
+    default: 'Update image '
+
+outputs:
+  updated-count:
+    description: 'Number of images updated'
+    value: ${{ steps.update-digests.outputs.updated-count }}
+
+  changes-made:
+    description: 'Whether any changes were made'
+    value: ${{ steps.update-digests.outputs.changes-made }}
+
+runs:
+  using: 'composite'
+  steps:
+  - name: Checkout target repository
+    uses: actions/checkout@v4
+    with:
+      repository: ${{ inputs.repository }}
+      ref: ${{ inputs.branch }}
+      token: ${{ inputs.token }}
+      path: target-repo
+
+  - name: Run kustomize digest updater
+    id: update-digests
+    shell: bash
+    working-directory: target-repo
+    run: ${{ github.action_path }}/update-digests.sh
+    env:
+      INPUT_REPOSITORY: ${{ inputs.repository }}
+      INPUT_TOKEN: ${{ inputs.token }}
+      INPUT_IMAGES: ${{ inputs.images }}
+      INPUT_TARGET_KUSTOMIZATION_PATH: ${{ inputs.kustomization-path }}
+      INPUT_COMMIT_MESSAGE: ${{ inputs.commit-message }}
