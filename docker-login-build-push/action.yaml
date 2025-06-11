@@ -59,11 +59,6 @@ inputs:
     required: true
     default: "true"
 
-  scan_license_ignore:
-    description: License types to ignore (comma-separated)
-    required: true
-    default: ""
-
   push:
     required: true
     default: "true"
@@ -89,35 +84,28 @@ runs:
       shell: bash
       run: docker build ${{ inputs.args }} -t '${{ inputs.image }}' -f ${{ inputs.dockerfile }} ${{ inputs.context }}
 
-    - name: Install Trivy
-      if: ${{ inputs.scan_image == 'true' }}
-      shell: bash
-      run: |
-        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.63.0
-
     - name: Trivy vulnerability scanner
       id: scan-image-vuln
       if: ${{ inputs.scan_image == 'true' }}
-      shell: bash
-      run: |
-        trivy image \
-          --format ${{ inputs.scan_output_format }} \
-          --exit-code ${{ inputs.scan_fail_build == 'true' && '1' || '0' }} \
-          --severity ${{ inputs.scan_severity_cutoff }} \
-          --vuln-type ${{ inputs.scan_vuln_type }} \
-          '${{ inputs.image }}'
+      uses: aquasecurity/trivy-action@v0.31.0
+      with:
+        scan-type: image
+        image-ref: ${{ inputs.image }}
+        format: ${{ inputs.scan_output_format }}
+        exit-code: ${{ inputs.scan_fail_build == 'true' && '1' || '0' }}
+        severity: ${{ inputs.scan_severity_cutoff }}
+        vuln-type: ${{ inputs.scan_vuln_type }}
 
     - name: Trivy license scanner
       id: scan-fs-license
-      if: ${{ inputs.scan_license == 'true' }}
-      shell: bash
-      run: |
-        trivy fs \
-          --scanners license \
-          --format ${{ inputs.scan_output_format }} \
-          --exit-code ${{ inputs.scan_fail_build == 'true' && '1' || '0' }} \
-          ${{ inputs.scan_license_ignore != '' && format('--ignored-licenses {0}', inputs.scan_license_ignore) || '' }} \
-          .
+      if: ${{ inputs.scan_image == 'true' && inputs.scan_license == 'true' }}
+      uses: aquasecurity/trivy-action@v0.31.0
+      with:
+        scan-type: fs
+        scan-ref: .
+        scanners: license
+        format: ${{ inputs.scan_output_format }}
+        exit-code: ${{ inputs.scan_fail_build == 'true' && '1' || '0' }}
     
     - name: Docker Push
       id: docker-push
