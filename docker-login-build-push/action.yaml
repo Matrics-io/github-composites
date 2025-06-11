@@ -59,6 +59,11 @@ inputs:
     required: true
     default: "true"
 
+  scan_ref:
+    description: Path to scan for licenses
+    required: true
+    default: "."
+
   push:
     required: true
     default: "true"
@@ -102,7 +107,7 @@ runs:
       uses: aquasecurity/trivy-action@master
       with:
         scan-type: fs
-        scan-ref: .
+        scan-ref: ${{ inputs.scan_ref }}
         scanners: license
         format: ${{ inputs.scan_output_format }}
         exit-code: ${{ inputs.scan_fail_build == 'true' && '1' || '0' }}
