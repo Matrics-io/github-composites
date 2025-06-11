@@ -59,7 +59,7 @@ inputs:
     required: true
     default: "true"
 
-  ignored-licenses:
+  scan_license_ignore:
     description: License types to ignore (comma-separated)
     required: true
     default: ""
@@ -108,16 +108,16 @@ runs:
           '${{ inputs.image }}'
 
     - name: Trivy license scanner
-      id: scan-image-license
-      if: ${{ inputs.scan_image == 'true' && inputs.scan_license == 'true' }}
-      shell: bash
-      run: |
-        trivy image \
-          --format ${{ inputs.scan_output_format }} \
-          --exit-code ${{ inputs.scan_fail_build == 'true' && '1' || '0' }} \
-          --scanners license \
-          ${{ inputs.ignored-licenses != '' && format('--ignored-licenses {0}', inputs.ignored-licenses) || '' }} \
-          '${{ inputs.image }}'
+    id: scan-fs-license
+    if: ${{ inputs.scan_license == 'true' }}
+    shell: bash
+    run: |
+      trivy fs \
+        --scanners license \
+        --format ${{ inputs.scan_output_format }} \
+        --exit-code ${{ inputs.scan_fail_build == 'true' && '1' || '0' }} \
+        ${{ inputs.scan_license_ignore != '' && format('--ignored-licenses {0}', inputs.scan_license_ignore) || '' }} \
+        .
     
     - name: Docker Push
       id: docker-push
