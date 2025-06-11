@@ -12,7 +12,7 @@ inputs:
     required: true
   target_branch:
     description: 'Name of the target branch'
-    required: true  
+    required: true
   source_directory:
     description: 'Path to the docs directory to publish from'
     required: true
@@ -23,31 +23,34 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Checkout Source Repository
-      uses: actions/checkout@v4 
+  - name: Checkout Source Repository
+    uses: actions/checkout@v4
 
-    - name: Checkout Documentation Repository
-      uses: actions/checkout@v4
-      with:
-        repository: ${{ inputs.documentation_repository }}
-        token: ${{ inputs.documentation_pat }}
-        path: ${{ inputs.documentation_checkout_path }}
-        ref: ${{ inputs.target_branch }}
-        fetch-depth: 0
+  - name: Checkout Documentation Repository
+    uses: actions/checkout@v4
+    with:
+      repository: ${{ inputs.documentation_repository }}
+      token: ${{ inputs.documentation_pat }}
+      path: ${{ inputs.documentation_checkout_path }}
+      ref: ${{ inputs.target_branch }}
+      fetch-depth: 0
 
-    - name: Copy docs to Documentation Repository 
-      shell: bash
-      run: |
-        mkdir -p ${{ inputs.documentation_checkout_path }}/docs/${{ inputs.target_directory }}
-        rsync -av --delete ${{ inputs.source_directory }}/ ${{ inputs.documentation_checkout_path }}/docs/${{ inputs.target_directory }}/
-      
-    - name: Commit and push changes 
-      shell: bash
-      working-directory: ${{ inputs.documentation_checkout_path }}
-      run: |
-        git config user.name "${{ github.actor }}"
-        git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-        
-        git add -A
-        git commit -m "Run details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        git push
+  - name: Copy docs to Documentation Repository
+    shell: bash
+    run: |
+      mkdir -p ${{ inputs.documentation_checkout_path }}/docs/${{ inputs.target_directory }}
+      # Remove existing content to simulate rsync --delete behavior
+      rm -rf ${{ inputs.documentation_checkout_path }}/docs/${{ inputs.target_directory }}/*
+      # Move new content
+      mv ${{ inputs.source_directory }}/* ${{ inputs.documentation_checkout_path }}/docs/${{ inputs.target_directory }}/
+
+  - name: Commit and push changes
+    shell: bash
+    working-directory: ${{ inputs.documentation_checkout_path }}
+    run: |
+      git config user.name "${{ github.actor }}"
+      git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      git add -A
+      git commit -m "Run details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      git push
