@@ -87,7 +87,7 @@ runs:
     - name: Trivy vulnerability scanner
       id: scan-image-vuln
       if: ${{ inputs.scan_image == 'true' }}
-      uses: aquasecurity/trivy-action@v0.30.0
+      uses: aquasecurity/trivy-action@master
       with:
         scan-type: image
         image-ref: ${{ inputs.image }}
@@ -99,7 +99,7 @@ runs:
     - name: Trivy license scanner
       id: scan-fs-license
       if: ${{ inputs.scan_image == 'true' && inputs.scan_license == 'true' }}
-      uses: aquasecurity/trivy-action@v0.30.0
+      uses: aquasecurity/trivy-action@master
       with:
         scan-type: fs
         scan-ref: .
