@@ -1,0 +1,30 @@
+name: Trivy License Scan
+description: Composite action to scan project source for license issues using Trivy.
+
+inputs:
+  scan_ref:
+    description: Reference path for license scan (e.g. project root)
+    required: true
+    default: "."
+
+  scan_output_format:
+    description: Trivy output format
+    required: true
+    default: "table"
+
+  scan_fail_build:
+    description: Fail build if license issues are found
+    required: true
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Trivy license scanner
+      uses: aquasecurity/trivy-action@0.31.0
+      with:
+        scan-type: fs
+        scan-ref: ${{ inputs.scan_ref }}
+        scanners: license
+        format: ${{ inputs.scan_output_format }}
+        exit-code: ${{ inputs.scan_fail_build == 'true' && '1' || '0' }} 

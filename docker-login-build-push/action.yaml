@@ -54,16 +54,6 @@ inputs:
     required: true
     default: "os,library"
 
-  scan_license:
-    description: Enable license scanning
-    required: true
-    default: "true"
-
-  scan_ref:
-    description: Path to scan for licenses
-    required: true
-    default: "."
-
   push:
     required: true
     default: "true"
@@ -92,7 +82,7 @@ runs:
     - name: Trivy vulnerability scanner
       id: scan-image-vuln
       if: ${{ inputs.scan_image == 'true' }}
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.31.0
       with:
         scan-type: image
         image-ref: ${{ inputs.image }}
@@ -101,17 +91,6 @@ runs:
         severity: ${{ inputs.scan_severity_cutoff }}
         vuln-type: ${{ inputs.scan_vuln_type }}
 
-    - name: Trivy license scanner
-      id: scan-fs-license
-      if: ${{ inputs.scan_image == 'true' && inputs.scan_license == 'true' }}
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: fs
-        scan-ref: ${{ inputs.scan_ref }}
-        scanners: license
-        format: ${{ inputs.scan_output_format }}
-        exit-code: ${{ inputs.scan_fail_build == 'true' && '1' || '0' }}
-    
     - name: Docker Push
       id: docker-push
       if: ${{ inputs.push == 'true' }}
