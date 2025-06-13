@@ -28,8 +28,8 @@ runs:
       ARGOCD_SERVER: ${{ inputs.argocd-server }}
       ARGOCD_AUTH_TOKEN: ${{ inputs.argocd-auth-token }}
     run: |
-      curl -sSL -o /usr/local/bin/argocd https://${ARGOCD_SERVER}/download/argocd-linux-amd64
-      chmod +x /usr/local/bin/argocd
+      curl -sSL -o /usr/bin/argocd https://${ARGOCD_SERVER}/download/argocd-linux-amd64
+      chmod +x /usr/bin/argocd
 
   - name: Restart deployments
     shell: bash
