@@ -27,7 +27,7 @@ runs:
 
     - name: Install Trivy SonarQube plugin
       shell: bash
-      run: trivy plugin install github.com/aquasecurity/trivy-plugin-sonarqube
+      run: trivy plugin install github.com/umax/trivy-plugin-sonarqube
 
     - name: Trivy vulnerability and license scan (JSON)
       shell: bash
