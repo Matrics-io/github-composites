@@ -4,10 +4,12 @@ description: Build and push Docker images using Nx and GCP Artifact Registry
 
 inputs:
   args:
+    default: ""
     description: Nx affected arguments
     required: true
 
   target:
+    default: ""
     description: Nx affected --target argument
     required: true
 
