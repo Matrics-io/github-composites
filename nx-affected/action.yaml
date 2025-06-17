@@ -11,6 +11,11 @@ inputs:
     description: Nx affected --target argument
     required: true
 
+  run-target:
+    description: Run nx affected command
+    required: true
+    default: "true"
+
   base:
     description: Nx affected --base argument
     required: true
@@ -141,7 +146,7 @@ runs:
       cache-dependency-path: ${{ inputs.node-cache-dependency-path }}
 
   - name: Install dependencies
-    if: ${{ inputs.install-dependencies }}
+    if: ${{ inputs.install-dependencies == 'true'}}
     shell: bash
     run: pnpm install --frozen-lockfile
 
@@ -155,6 +160,7 @@ runs:
       main-branch-name: ${{ inputs.base }}
 
   - name: Build affected projects using Nx configuration
+    if: ${{ inputs.run-target == 'true' }}
     shell: bash
     env:
       NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
