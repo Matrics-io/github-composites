@@ -55,6 +55,11 @@ inputs:
     required: true
     description: Go version
 
+  go-cache-dependency-path:
+    default: ""
+    required: true
+    description: Go cache dependency path. This will be used to identify cached dependencies
+
   python-version:
     default: ""
     required: true
@@ -125,6 +130,7 @@ runs:
     uses: actions/setup-go@v5
     with:
       go-version: ${{ inputs.go-version }}
+      cache-dependency-path: ${{ inputs.go-cache-dependency-path }}
 
   - name: Setup Python
     if: ${{ inputs.setup-python == 'true' }}
