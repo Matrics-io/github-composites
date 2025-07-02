@@ -36,4 +36,4 @@ runs:
     env:
       ARGOCD_SERVER: ${{ inputs.argocd-server }}
       ARGOCD_AUTH_TOKEN: ${{ inputs.argocd-auth-token }}
-    run: argocd app actions run ${{ inputs.cluster }}/${{ inputs.application }} restart --kind ${{ inputs.kind }}
+    run: argocd app actions run ${{ inputs.cluster }}/${{ inputs.application }} restart --kind ${{ inputs.kind }} --all
