@@ -42,11 +42,6 @@ inputs:
     required: true
     description: Setup node
 
-  setup-pnpm:
-    default: "true"
-    required: true
-    description: Setup pnpm
-
   setup-nx:
     default: "true"
     required: true
@@ -86,16 +81,6 @@ inputs:
     default: "22"
     description: Node version
     required: true
-
-  node-cache:
-    required: true
-    default: pnpm
-    description: Node cache
-
-  node-cache-dependency-path:
-    required: true
-    default: package.json
-    description: Node cache dependency path. This will be used to identify cached dependencies
 
   docker-login:
     required: true
@@ -147,12 +132,10 @@ runs:
 
   - name: Setup Node
     if: ${{ inputs.setup-node == 'true' }}
-    uses: actions/setup-node@v3
+    uses: actions/setup-node@v4
     with:
       node-version: ${{ inputs.node-version }}
-      cache: ${{ inputs.node-cache }}
-      cache-dependency-path: ${{ inputs.node-cache-dependency-path }}
-
+  
   - name: Install dependencies
     if: ${{ inputs.install-dependencies == 'true'}}
     shell: bash
