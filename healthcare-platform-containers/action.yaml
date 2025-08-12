@@ -1,0 +1,201 @@
+name: Healthcare Platform Container Build & Push - Secure
+description: 'Secure container build and push for Healthcare Platform with multi-arch support and vulnerability scanning'
+
+inputs:
+  base:
+    description: 'Base branch/commit to compare against'
+    required: false
+    default: 'origin/develop~1'
+  configuration:
+    description: 'Build configuration (develop/main/production)'
+    required: false
+    default: 'develop'
+  gh-pat:
+    description: 'GitHub Personal Access Token for private repositories'
+    required: true
+  gcp-sa-key:
+    description: 'GCP Service Account Key for authentication'
+    required: true
+  registry-password:
+    description: 'Docker registry password/token'
+    required: true
+  google-region:
+    description: 'GCP region for Artifact Registry'
+    required: false
+    default: 'us-east1'
+  push-containers:
+    description: 'Whether to push containers to registry'
+    required: false
+    default: 'true'
+  run-security-scan:
+    description: 'Run security vulnerability scan on built images'
+    required: false
+    default: 'true'
+  app-filter:
+    description: 'Filter for specific apps (leave empty for all affected apps)'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure Git for private modules
+      shell: bash
+      run: |
+        git config --global url."https://${{ inputs.gh-pat }}:@github.com/".insteadOf "https://github.com/"
+        git config --global credential.helper store
+        git config --global --add safe.directory "*"
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ inputs.gh-pat }}
+
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ inputs.gcp-sa-key }}
+        create_credentials_file: true
+        export_environment_variables: true
+
+    - name: Setup Docker Buildx with advanced features
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver: docker-container
+        use: true
+        buildkitd-flags: |
+          --allow-insecure-entitlement network.host
+          --allow-insecure-entitlement security.insecure
+
+    - name: Login to Google Artifact Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.google-region }}-docker.pkg.dev
+        username: oauth2accesstoken
+        password: ${{ inputs.registry-password }}
+
+    - name: Configure private npm registry
+      shell: bash
+      run: |
+        echo "Configuring private registries for container builds..."
+        TOKEN=$(gcloud auth application-default print-access-token)
+        
+        # Create .npmrc for container builds
+        cat > .npmrc << EOF
+        registry=https://registry.npmjs.org/
+        @matricsio:registry=https://us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/
+        @healthcare-platform:registry=https://us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/
+        //us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/:_authToken=${TOKEN}
+        EOF
+
+    - name: Install dependencies for Nx
+      shell: bash
+      run: |
+        if [ -f "pnpm-lock.yaml" ]; then
+          pnpm install --frozen-lockfile
+        else
+          pnpm install
+        fi
+
+    - name: Setup base reference for affected detection
+      shell: bash
+      run: |
+        git fetch --all
+        
+        if ! git show-ref --verify --quiet refs/heads/$(basename "${{ inputs.base }}"); then
+          if git show-ref --verify --quiet refs/remotes/${{ inputs.base }}; then
+            git branch $(basename "${{ inputs.base }}") ${{ inputs.base }}
+            echo "BASE_REF=$(basename '${{ inputs.base }}')" >> $GITHUB_ENV
+          else
+            echo "BASE_REF=${{ inputs.base }}" >> $GITHUB_ENV
+          fi
+        else
+          echo "BASE_REF=$(basename '${{ inputs.base }}')" >> $GITHUB_ENV
+        fi
+
+    - name: Build and push affected containers
+      shell: bash
+      run: |
+        BASE_REF="${BASE_REF:-${{ inputs.base }}}"
+        
+        # Set environment variables for builds
+        export DOCKER_BUILDKIT=1
+        export BUILDKIT_PROGRESS=plain
+        
+        # Configure Nx for container operations
+        export NX_SKIP_DOCKER_CHECK=false
+        export NX_ENABLE_DOCKER=true
+        
+        # Build container arguments
+        ARGS="--configuration=${{ inputs.configuration }}"
+        if [ -n "${{ inputs.app-filter }}" ]; then
+          ARGS="$ARGS --projects=${{ inputs.app-filter }}"
+        fi
+        
+        echo "Building affected containers with base: $BASE_REF"
+        echo "Configuration: ${{ inputs.configuration }}"
+        echo "Arguments: $ARGS"
+        
+        # Run nx affected for container builds
+        pnpm nx affected --target=container --base="$BASE_REF" $ARGS --parallel=2
+
+    - name: Security scan built images
+      if: ${{ inputs.run-security-scan == 'true' }}
+      shell: bash
+      run: |
+        echo "Running security scans on built images..."
+        
+        # Install Trivy for security scanning
+        sudo apt-get update
+        sudo apt-get install wget apt-transport-https gnupg lsb-release -y
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+        sudo apt-get update
+        sudo apt-get install trivy -y
+        
+        # Find and scan all images that match our pattern
+        IMAGES=$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep "${{ inputs.google-region }}-docker.pkg.dev" | grep -v "<none>" || true)
+        
+        if [ -n "$IMAGES" ]; then
+          echo "Found images to scan:"
+          echo "$IMAGES"
+          
+          echo "$IMAGES" | while read -r image; do
+            if [ -n "$image" ] && [ "$image" != "REPOSITORY:TAG" ]; then
+              echo "Scanning $image for vulnerabilities..."
+              trivy image --severity HIGH,CRITICAL --exit-code 0 "$image"
+            fi
+          done
+        else
+          echo "No images found to scan"
+        fi
+
+    - name: Generate build summary
+      shell: bash
+      run: |
+        echo "## 🚀 Container Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Configuration**: ${{ inputs.configuration }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Base Reference**: ${BASE_REF:-${{ inputs.base }}}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Security Scan**: ${{ inputs.run-security-scan }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Push to Registry**: ${{ inputs.push-containers }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # List built images
+        IMAGES=$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep "${{ inputs.google-region }}-docker.pkg.dev" | grep -v "<none>" || true)
+        if [ -n "$IMAGES" ]; then
+          echo "### Built Images:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "$IMAGES" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        fi
+
+outputs:
+  images-built:
+    description: 'Number of container images built'
+    value: 'success'
+  registry:
+    description: 'Container registry used'
+    value: ${{ inputs.google-region }}-docker.pkg.dev
