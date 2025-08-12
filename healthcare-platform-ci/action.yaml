@@ -1,0 +1,152 @@
+name: Healthcare Platform CI - Optimized
+description: 'Optimized CI pipeline for Healthcare Platform with pre-built Docker image, OCR support, and private repository access'
+
+inputs:
+  targets:
+    description: 'Comma-separated list of targets to run (lint,test,build)'
+    required: false
+    default: 'lint,test,build'
+  base:
+    description: 'Base branch/commit to compare against'
+    required: false
+    default: 'develop'
+  args:
+    description: 'Additional arguments to pass to nx affected'
+    required: false
+    default: '--parallel=false'
+  gh-pat:
+    description: 'GitHub Personal Access Token for private repositories'
+    required: true
+  gcp-sa-key:
+    description: 'GCP Service Account Key for authentication'
+    required: true
+  registry-password:
+    description: 'Docker registry password/token'
+    required: true
+  skip-setup:
+    description: 'Skip initial setup steps (useful for chained operations)'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure Git for private modules
+      if: ${{ inputs.skip-setup != 'true' }}
+      shell: bash
+      run: |
+        git config --global url."https://${{ inputs.gh-pat }}:@github.com/".insteadOf "https://github.com/"
+        git config --global credential.helper store
+        git config --global --add safe.directory "*"
+
+    - name: Checkout repository
+      if: ${{ inputs.skip-setup != 'true' }}
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ inputs.gh-pat }}
+
+    - name: Authenticate with Google Cloud
+      if: ${{ inputs.skip-setup != 'true' }}
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ inputs.gcp-sa-key }}
+        create_credentials_file: true
+        export_environment_variables: true
+
+    - name: Setup optimized environment
+      shell: bash
+      run: |
+        echo "Setting up Healthcare Platform environment..."
+        
+        # Verify pre-installed tools in Docker image
+        echo "Node.js: $(node --version)"
+        echo "pnpm: $(pnpm --version)" 
+        echo "Go: $(go version)"
+        echo "Tesseract: $(tesseract --version | head -1)"
+        echo "golangci-lint: $(golangci-lint --version)"
+        
+        # Configure Go environment for OCR support
+        echo "PATH=$PATH:/usr/local/go/bin:$HOME/go/bin" >> $GITHUB_ENV
+        echo "GOPATH=$HOME/go" >> $GITHUB_ENV
+        echo "GOCACHE=$HOME/.cache/go-build" >> $GITHUB_ENV
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        echo "CGO_CPPFLAGS=-I/usr/include/tesseract -I/usr/include/leptonica" >> $GITHUB_ENV
+        echo "CGO_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -ltesseract -lleptonica" >> $GITHUB_ENV
+        echo "GOPRIVATE=github.com/Matrics-io/*" >> $GITHUB_ENV
+
+    - name: Configure private registries
+      shell: bash
+      run: |
+        echo "Configuring private registries..."
+        # Get GCP access token for private npm packages
+        TOKEN=$(gcloud auth application-default print-access-token)
+        
+        # Configure pnpm for private registries
+        pnpm config set registry https://registry.npmjs.org/
+        pnpm config set @matricsio:registry https://us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/
+        pnpm config set @healthcare-platform:registry https://us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/
+        pnpm config set "//us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/:_authToken" "${TOKEN}"
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        echo "Installing project dependencies..."
+        if [ -f "pnpm-lock.yaml" ]; then
+          pnpm install --frozen-lockfile
+        else
+          pnpm install
+        fi
+        
+        # Verify NX is available
+        echo "NX version: $(npx nx --version)"
+
+    - name: Download Go modules
+      shell: bash
+      run: |
+        echo "Downloading Go modules for all Go projects..."
+        find . -name "go.mod" -not -path "./node_modules/*" | while read -r gomod; do
+          dir=$(dirname "$gomod")
+          echo "Downloading modules for $dir"
+          (cd "$dir" && go mod download)
+        done
+
+    - name: Setup base reference
+      shell: bash
+      run: |
+        echo "Setting up base reference for affected detection..."
+        git fetch --all
+        
+        if ! git show-ref --verify --quiet refs/heads/${{ inputs.base }}; then
+          if git show-ref --verify --quiet refs/remotes/origin/${{ inputs.base }}; then
+            git branch ${{ inputs.base }} origin/${{ inputs.base }}
+            echo "BASE_REF=${{ inputs.base }}" >> $GITHUB_ENV
+          else
+            echo "BASE_REF=origin/${{ inputs.base }}" >> $GITHUB_ENV
+          fi
+        else
+          echo "BASE_REF=${{ inputs.base }}" >> $GITHUB_ENV
+        fi
+
+    - name: Run CI targets
+      shell: bash
+      run: |
+        BASE_REF="${BASE_REF:-${{ inputs.base }}}"
+        IFS=',' read -ra TARGETS <<< "${{ inputs.targets }}"
+        
+        # Disable Docker for CI operations
+        export NX_SKIP_DOCKER_CHECK=true
+        export NX_DISABLE_DOCKER=true
+        
+        for target in "${TARGETS[@]}"; do
+          target=$(echo "$target" | xargs) # trim whitespace
+          echo "Running nx affected --target=$target --base=$BASE_REF ${{ inputs.args }}"
+          pnpm nx affected --target="$target" --base="$BASE_REF" ${{ inputs.args }}
+        done
+        
+        echo "All CI targets completed successfully"
+
+outputs:
+  success:
+    description: 'Whether all targets completed successfully'
+    value: 'true'

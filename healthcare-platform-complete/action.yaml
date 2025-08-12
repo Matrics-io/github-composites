@@ -1,0 +1,159 @@
+name: Healthcare Platform Complete Pipeline
+description: 'Complete CI/CD pipeline for Healthcare Platform - optimized, secure, and efficient'
+
+inputs:
+  # Authentication inputs
+  gh-pat:
+    description: 'GitHub Personal Access Token for private repositories'
+    required: true
+  gcp-sa-key:
+    description: 'GCP Service Account Key for authentication'
+    required: true
+  registry-password:
+    description: 'Docker registry password/token'
+    required: true
+  
+  # Pipeline configuration
+  base-branch:
+    description: 'Base branch for affected detection'
+    required: false
+    default: 'develop'
+  
+  # CI configuration
+  ci-targets:
+    description: 'CI targets to run (lint,test,build)'
+    required: false
+    default: 'lint,test,build'
+  ci-args:
+    description: 'Additional arguments for CI operations'
+    required: false
+    default: '--parallel=false'
+  skip-ci:
+    description: 'Skip CI operations (lint, test, build)'
+    required: false
+    default: 'false'
+  
+  # Container configuration
+  build-containers:
+    description: 'Build and push containers'
+    required: false
+    default: 'false'
+  container-configuration:
+    description: 'Container build configuration'
+    required: false
+    default: 'develop'
+  run-security-scan:
+    description: 'Run security scan on containers'
+    required: false
+    default: 'true'
+  
+  # ArgoCD configuration
+  deploy-to-argocd:
+    description: 'Deploy to ArgoCD after container build'
+    required: false
+    default: 'false'
+  argocd-server:
+    description: 'ArgoCD server URL'
+    required: false
+  argocd-auth-token:
+    description: 'ArgoCD authentication token'
+    required: false
+  argocd-cluster:
+    description: 'ArgoCD cluster name'
+    required: false
+    default: 'hplus-develop-cluster'
+  argocd-application:
+    description: 'ArgoCD application name'
+    required: false
+    default: 'fhir-server'
+  
+  # Advanced options
+  google-region:
+    description: 'GCP region'
+    required: false
+    default: 'us-east1'
+  fail-fast:
+    description: 'Fail fast on first error'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Pipeline Initialization
+      shell: bash
+      run: |
+        echo "🚀 Healthcare Platform Pipeline Starting..."
+        echo "=================================="
+        echo "CI Targets: ${{ inputs.ci-targets }}"
+        echo "Build Containers: ${{ inputs.build-containers }}"
+        echo "Deploy to ArgoCD: ${{ inputs.deploy-to-argocd }}"
+        echo "Base Branch: ${{ inputs.base-branch }}"
+        echo "Configuration: ${{ inputs.container-configuration }}"
+        echo "=================================="
+
+    - name: Run CI Operations (Lint, Test, Build)
+      if: ${{ inputs.skip-ci != 'true' }}
+      uses: ./healthcare-platform-ci
+      with:
+        targets: ${{ inputs.ci-targets }}
+        base: ${{ inputs.base-branch }}
+        args: ${{ inputs.ci-args }}
+        gh-pat: ${{ inputs.gh-pat }}
+        gcp-sa-key: ${{ inputs.gcp-sa-key }}
+        registry-password: ${{ inputs.registry-password }}
+
+    - name: Build and Push Containers
+      if: ${{ inputs.build-containers == 'true' }}
+      uses: ./healthcare-platform-containers
+      with:
+        base: origin/${{ inputs.base-branch }}~1
+        configuration: ${{ inputs.container-configuration }}
+        gh-pat: ${{ inputs.gh-pat }}
+        gcp-sa-key: ${{ inputs.gcp-sa-key }}
+        registry-password: ${{ inputs.registry-password }}
+        google-region: ${{ inputs.google-region }}
+        run-security-scan: ${{ inputs.run-security-scan }}
+
+    - name: Deploy to ArgoCD
+      if: ${{ inputs.deploy-to-argocd == 'true' }}
+      uses: ../argocd-restart-deployments
+      with:
+        install: 'true'
+        argocd-server: ${{ inputs.argocd-server }}
+        argocd-auth-token: ${{ inputs.argocd-auth-token }}
+        cluster: ${{ inputs.argocd-cluster }}
+        application: ${{ inputs.argocd-application }}
+        kind: 'Deployment'
+
+    - name: Pipeline Summary
+      shell: bash
+      run: |
+        echo "## ✅ Healthcare Platform Pipeline Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Pipeline Configuration" >> $GITHUB_STEP_SUMMARY
+        echo "- **Base Branch**: ${{ inputs.base-branch }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **CI Targets**: ${{ inputs.ci-targets }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Containers Built**: ${{ inputs.build-containers }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Security Scan**: ${{ inputs.run-security-scan }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **ArgoCD Deployment**: ${{ inputs.deploy-to-argocd }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ inputs.build-containers }}" == "true" ]; then
+          echo "### Container Registry" >> $GITHUB_STEP_SUMMARY
+          echo "Registry: \`${{ inputs.google-region }}-docker.pkg.dev\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "🎉 **All operations completed successfully!**" >> $GITHUB_STEP_SUMMARY
+
+outputs:
+  ci-success:
+    description: 'Whether CI operations completed successfully'
+    value: 'true'
+  containers-built:
+    description: 'Whether containers were built'
+    value: ${{ inputs.build-containers }}
+  deployed:
+    description: 'Whether deployment was triggered'
+    value: ${{ inputs.deploy-to-argocd }}
