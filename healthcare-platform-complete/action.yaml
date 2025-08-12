@@ -94,7 +94,7 @@ runs:
 
     - name: Run CI Operations (Lint, Test, Build)
       if: ${{ inputs.skip-ci != 'true' }}
-      uses: ./healthcare-platform-ci
+      uses: Matrics-io/github-composites/healthcare-platform-ci@main
       with:
         targets: ${{ inputs.ci-targets }}
         base: ${{ inputs.base-branch }}
@@ -105,7 +105,7 @@ runs:
 
     - name: Build and Push Containers
       if: ${{ inputs.build-containers == 'true' }}
-      uses: ./healthcare-platform-containers
+      uses: Matrics-io/github-composites/healthcare-platform-containers@main
       with:
         base: origin/${{ inputs.base-branch }}~1
         configuration: ${{ inputs.container-configuration }}
@@ -117,7 +117,7 @@ runs:
 
     - name: Deploy to ArgoCD
       if: ${{ inputs.deploy-to-argocd == 'true' }}
-      uses: ../argocd-restart-deployments
+      uses: Matrics-io/github-composites/argocd-restart-deployments@main
       with:
         install: 'true'
         argocd-server: ${{ inputs.argocd-server }}
