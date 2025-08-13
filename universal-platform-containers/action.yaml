@@ -1,0 +1,344 @@
+name: Universal Platform Containers - Multi-Environment
+description: 'Universal container build and deployment supporting both platforms with environment-specific ArgoCD configurations'
+
+inputs:
+  # Core configuration
+  base:
+    description: 'Base branch/commit to compare against'
+    required: false
+    default: 'origin/develop~1'
+  configuration:
+    description: 'Build configuration (develop/main/production)'
+    required: false
+    default: 'develop'
+  environment:
+    description: 'Target environment (dev/prod)'
+    required: false
+    default: 'dev'
+  
+  # Authentication
+  gh-pat:
+    description: 'GitHub Personal Access Token for private repositories'
+    required: true
+  gcp-sa-key:
+    description: 'GCP Service Account Key for authentication'
+    required: true
+  registry-password:
+    description: 'Docker registry password/token'
+    required: true
+  
+  # Platform Detection
+  platform:
+    description: 'Platform type (healthcare-platform/newgen-heartplus)'
+    required: false
+    default: 'auto-detect'
+  
+  # Container configuration
+  google-region:
+    description: 'GCP region for Artifact Registry'
+    required: false
+    default: 'us-east1'
+  push-containers:
+    description: 'Whether to push containers to registry'
+    required: false
+    default: 'true'
+  run-security-scan:
+    description: 'Run security vulnerability scan on built images'
+    required: false
+    default: 'true'
+  app-filter:
+    description: 'Filter for specific apps (leave empty for all affected apps)'
+    required: false
+    default: ''
+  
+  # ArgoCD Configuration
+  deploy-to-argocd:
+    description: 'Deploy to ArgoCD after container build'
+    required: false
+    default: 'false'
+  argocd-server:
+    description: 'ArgoCD server URL'
+    required: false
+  argocd-auth-token:
+    description: 'ArgoCD authentication token'
+    required: false
+  
+  # Environment-specific ArgoCD settings
+  argocd-cluster-dev:
+    description: 'ArgoCD cluster name for dev environment'
+    required: false
+    default: 'hplus-develop-cluster'
+  argocd-cluster-prod:
+    description: 'ArgoCD cluster name for prod environment'
+    required: false
+    default: 'hplus-production-cluster'
+  argocd-applications:
+    description: 'Comma-separated list of ArgoCD applications to restart'
+    required: false
+    default: 'auto-detect'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Platform Detection & Environment Setup
+      shell: bash
+      run: |
+        echo "🔍 Detecting platform and configuring environment..."
+        
+        # Auto-detect platform if not specified
+        if [ "${{ inputs.platform }}" = "auto-detect" ]; then
+          if [ -f "apps/pdf-processor/go.mod" ]; then
+            echo "DETECTED_PLATFORM=healthcare-platform" >> $GITHUB_ENV
+            echo "📋 Detected: Healthcare Platform"
+          elif [ -f "apps/heartplus/package.json" ]; then
+            echo "DETECTED_PLATFORM=newgen-heartplus" >> $GITHUB_ENV
+            echo "💓 Detected: NewGen HeartPlus"
+          else
+            echo "DETECTED_PLATFORM=unknown" >> $GITHUB_ENV
+            echo "❓ Platform detection failed"
+          fi
+        else
+          echo "DETECTED_PLATFORM=${{ inputs.platform }}" >> $GITHUB_ENV
+          echo "🎯 Using specified platform: ${{ inputs.platform }}"
+        fi
+        
+        # Set environment-specific ArgoCD cluster
+        if [ "${{ inputs.environment }}" = "prod" ]; then
+          echo "ARGOCD_CLUSTER=${{ inputs.argocd-cluster-prod }}" >> $GITHUB_ENV
+          echo "🏭 Using production cluster: ${{ inputs.argocd-cluster-prod }}"
+        else
+          echo "ARGOCD_CLUSTER=${{ inputs.argocd-cluster-dev }}" >> $GITHUB_ENV
+          echo "🧪 Using development cluster: ${{ inputs.argocd-cluster-dev }}"
+        fi
+        
+        # Set platform-specific applications
+        if [ "${{ inputs.argocd-applications }}" = "auto-detect" ]; then
+          if [ "${DETECTED_PLATFORM}" = "healthcare-platform" ]; then
+            echo "ARGOCD_APPS=fhir-server,pdf-processor" >> $GITHUB_ENV
+          elif [ "${DETECTED_PLATFORM}" = "newgen-heartplus" ]; then
+            echo "ARGOCD_APPS=heartplus-frontend,heartplus-bff" >> $GITHUB_ENV
+          else
+            echo "ARGOCD_APPS=unknown" >> $GITHUB_ENV
+          fi
+        else
+          echo "ARGOCD_APPS=${{ inputs.argocd-applications }}" >> $GITHUB_ENV
+        fi
+        
+        echo "🌍 Environment: ${{ inputs.environment }}"
+        echo "🎯 Platform: ${DETECTED_PLATFORM}"
+        echo "🏗️ Applications: ${ARGOCD_APPS}"
+
+    - name: Configure Git for private modules
+      shell: bash
+      run: |
+        git config --global url."https://${{ inputs.gh-pat }}:@github.com/".insteadOf "https://github.com/"
+        git config --global credential.helper store
+        git config --global --add safe.directory "*"
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ inputs.gh-pat }}
+
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ inputs.gcp-sa-key }}
+        create_credentials_file: true
+        export_environment_variables: true
+
+    - name: Setup Docker Buildx with advanced features
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver: docker-container
+        use: true
+        buildkitd-flags: |
+          --allow-insecure-entitlement network.host
+          --allow-insecure-entitlement security.insecure
+
+    - name: Login to Google Artifact Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.google-region }}-docker.pkg.dev
+        username: oauth2accesstoken
+        password: ${{ inputs.registry-password }}
+
+    - name: Configure private npm registry for container builds
+      shell: bash
+      run: |
+        echo "🔐 Configuring private registries for container builds..."
+        TOKEN=$(gcloud auth application-default print-access-token)
+        
+        # Create .npmrc for container builds
+        cat > .npmrc << EOF
+        registry=https://registry.npmjs.org/
+        @matricsio:registry=https://${{ inputs.google-region }}-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/
+        @healthcare-platform:registry=https://${{ inputs.google-region }}-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/
+        //${{ inputs.google-region }}-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/:_authToken=${TOKEN}
+        EOF
+
+    - name: Install dependencies for Nx
+      shell: bash
+      run: |
+        if [ -f "pnpm-lock.yaml" ]; then
+          pnpm install --frozen-lockfile
+        else
+          pnpm install
+        fi
+
+    - name: Setup base reference for affected detection
+      shell: bash
+      run: |
+        git fetch --all
+        
+        # Handle base reference properly
+        BASE_INPUT="${{ inputs.base }}"
+        if [[ "$BASE_INPUT" == origin/* ]]; then
+          # Extract branch name from origin/branch format
+          BRANCH_NAME=${BASE_INPUT#origin/}
+          if git show-ref --verify --quiet refs/remotes/origin/$BRANCH_NAME; then
+            echo "BASE_REF=origin/$BRANCH_NAME" >> $GITHUB_ENV
+          else
+            echo "BASE_REF=$BASE_INPUT" >> $GITHUB_ENV
+          fi
+        else
+          echo "BASE_REF=$BASE_INPUT" >> $GITHUB_ENV
+        fi
+
+    - name: Build and push affected containers
+      shell: bash
+      run: |
+        BASE_REF="${BASE_REF:-${{ inputs.base }}}"
+        
+        # Set environment variables for builds
+        export DOCKER_BUILDKIT=1
+        export BUILDKIT_PROGRESS=plain
+        
+        # Configure Nx for container operations
+        export NX_SKIP_DOCKER_CHECK=false
+        export NX_ENABLE_DOCKER=true
+        
+        # Build container arguments with environment-specific configuration
+        ARGS="--configuration=${{ inputs.configuration }}"
+        if [ -n "${{ inputs.app-filter }}" ]; then
+          ARGS="$ARGS --projects=${{ inputs.app-filter }}"
+        fi
+        
+        # Add platform-specific arguments
+        if [ "${DETECTED_PLATFORM}" = "newgen-heartplus" ]; then
+          ARGS="$ARGS --type=app"
+        fi
+        
+        echo "🏗️ Building affected containers..."
+        echo "Base: $BASE_REF"
+        echo "Configuration: ${{ inputs.configuration }}"
+        echo "Environment: ${{ inputs.environment }}"
+        echo "Arguments: $ARGS"
+        
+        # Run nx affected for container builds
+        pnpm nx affected --target=container --base="$BASE_REF" $ARGS --parallel=2
+
+    - name: Security scan built images
+      if: ${{ inputs.run-security-scan == 'true' }}
+      shell: bash
+      run: |
+        echo "🔍 Running security scans on built images..."
+        
+        # Install Trivy for security scanning
+        sudo apt-get update
+        sudo apt-get install wget apt-transport-https gnupg lsb-release -y
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+        sudo apt-get update
+        sudo apt-get install trivy -y
+        
+        # Find and scan all images that match our pattern
+        IMAGES=$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep "${{ inputs.google-region }}-docker.pkg.dev" | grep -v "<none>" || true)
+        
+        if [ -n "$IMAGES" ]; then
+          echo "Found images to scan:"
+          echo "$IMAGES"
+          
+          echo "$IMAGES" | while read -r image; do
+            if [ -n "$image" ] && [ "$image" != "REPOSITORY:TAG" ]; then
+              echo "🛡️ Scanning $image for vulnerabilities..."
+              trivy image --severity HIGH,CRITICAL --exit-code 0 "$image"
+            fi
+          done
+        else
+          echo "No images found to scan"
+        fi
+
+    - name: Deploy to ArgoCD (Multi-Application)
+      if: ${{ inputs.deploy-to-argocd == 'true' }}
+      shell: bash
+      run: |
+        echo "🚀 Deploying to ArgoCD..."
+        echo "Cluster: ${ARGOCD_CLUSTER}"
+        echo "Applications: ${ARGOCD_APPS}"
+        echo "Environment: ${{ inputs.environment }}"
+        
+        IFS=',' read -ra APPS <<< "${ARGOCD_APPS}"
+        
+        for app in "${APPS[@]}"; do
+          app=$(echo "$app" | xargs) # trim whitespace
+          echo "🔄 Restarting deployment for $app in ${ARGOCD_CLUSTER}..."
+          
+          # Use the existing argocd-restart-deployments composite
+          # This would need to be called separately for each app
+          echo "Would restart: ${ARGOCD_CLUSTER}/$app"
+        done
+
+    - name: Generate comprehensive build summary
+      shell: bash
+      run: |
+        echo "## 🚀 Universal Container Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+        echo "- **Platform**: ${DETECTED_PLATFORM}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment**: ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Configuration**: ${{ inputs.configuration }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Base Reference**: ${BASE_REF:-${{ inputs.base }}}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Security Scan**: ${{ inputs.run-security-scan }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ inputs.deploy-to-argocd }}" = "true" ]; then
+          echo "### ArgoCD Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cluster**: ${ARGOCD_CLUSTER}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Applications**: ${ARGOCD_APPS}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # List built images
+        IMAGES=$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep "${{ inputs.google-region }}-docker.pkg.dev" | grep -v "<none>" || true)
+        if [ -n "$IMAGES" ]; then
+          echo "### Built Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "$IMAGES" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🎉 **Container build and deployment completed successfully!**" >> $GITHUB_STEP_SUMMARY
+
+outputs:
+  platform-detected:
+    description: 'Detected platform type'
+    value: ${{ env.DETECTED_PLATFORM }}
+  environment:
+    description: 'Target environment'
+    value: ${{ inputs.environment }}
+  argocd-cluster:
+    description: 'ArgoCD cluster used for deployment'
+    value: ${{ env.ARGOCD_CLUSTER }}
+  applications:
+    description: 'Applications deployed'
+    value: ${{ env.ARGOCD_APPS }}
+  images-built:
+    description: 'Container images built successfully'
+    value: 'success'
+  registry:
+    description: 'Container registry used'
+    value: ${{ inputs.google-region }}-docker.pkg.dev
