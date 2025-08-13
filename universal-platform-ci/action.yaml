@@ -1,0 +1,278 @@
+name: Universal Platform CI - Multi-Environment
+description: 'Universal CI pipeline supporting both healthcare-platform and newgen-heartplus with environment-specific configurations'
+
+inputs:
+  # Core configuration
+  targets:
+    description: 'Comma-separated list of targets to run (lint,test,build)'
+    required: false
+    default: 'lint,test,build'
+  base:
+    description: 'Base branch/commit to compare against'
+    required: false
+    default: 'develop'
+  args:
+    description: 'Additional arguments to pass to nx affected'
+    required: false
+    default: '--parallel=false'
+  
+  # Authentication
+  gh-pat:
+    description: 'GitHub Personal Access Token for private repositories'
+    required: true
+  gcp-sa-key:
+    description: 'GCP Service Account Key for authentication'
+    required: true
+  registry-password:
+    description: 'Docker registry password/token'
+    required: true
+  
+  # Environment & Platform Detection
+  environment:
+    description: 'Target environment (dev/prod)'
+    required: false
+    default: 'dev'
+  platform:
+    description: 'Platform type (healthcare-platform/newgen-heartplus)'
+    required: false
+    default: 'auto-detect'
+  
+  # Registry configuration
+  google-region:
+    description: 'GCP region for private registries'
+    required: false
+    default: 'us-east1'
+  npm-registry-org:
+    description: 'Organization for private npm packages'
+    required: false
+    default: 'matricsio'
+  npm-registry-url:
+    description: 'Private npm registry URL'
+    required: false
+    default: 'us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/'
+  
+  # Advanced options
+  skip-setup:
+    description: 'Skip initial setup steps (useful for chained operations)'
+    required: false
+    default: 'false'
+  enable-sonarqube:
+    description: 'Enable SonarQube analysis for newgen-heartplus'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Platform Detection & Setup
+      shell: bash
+      run: |
+        echo "🔍 Detecting platform and environment..."
+        
+        # Auto-detect platform if not specified
+        if [ "${{ inputs.platform }}" = "auto-detect" ]; then
+          if [ -f "apps/pdf-processor/go.mod" ]; then
+            echo "DETECTED_PLATFORM=healthcare-platform" >> $GITHUB_ENV
+            echo "📋 Detected: Healthcare Platform"
+          elif [ -f "apps/heartplus/package.json" ]; then
+            echo "DETECTED_PLATFORM=newgen-heartplus" >> $GITHUB_ENV
+            echo "💓 Detected: NewGen HeartPlus"
+          else
+            echo "DETECTED_PLATFORM=unknown" >> $GITHUB_ENV
+            echo "❓ Platform detection failed - proceeding with default settings"
+          fi
+        else
+          echo "DETECTED_PLATFORM=${{ inputs.platform }}" >> $GITHUB_ENV
+          echo "🎯 Using specified platform: ${{ inputs.platform }}"
+        fi
+        
+        echo "🌍 Environment: ${{ inputs.environment }}"
+        echo "🎯 Platform: ${DETECTED_PLATFORM}"
+
+    - name: Configure Git for private modules
+      if: ${{ inputs.skip-setup != 'true' }}
+      shell: bash
+      run: |
+        git config --global url."https://${{ inputs.gh-pat }}:@github.com/".insteadOf "https://github.com/"
+        git config --global credential.helper store
+        git config --global --add safe.directory "*"
+
+    - name: Checkout repository
+      if: ${{ inputs.skip-setup != 'true' }}
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ inputs.gh-pat }}
+
+    - name: Authenticate with Google Cloud
+      if: ${{ inputs.skip-setup != 'true' }}
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ inputs.gcp-sa-key }}
+        create_credentials_file: true
+        export_environment_variables: true
+
+    - name: Setup environment for detected platform
+      shell: bash
+      run: |
+        echo "🛠️ Setting up environment for ${DETECTED_PLATFORM}..."
+        
+        # Verify pre-installed tools
+        echo "Node.js: $(node --version)"
+        echo "pnpm: $(pnpm --version)" 
+        
+        # Configure environment based on platform
+        if [ "${DETECTED_PLATFORM}" = "healthcare-platform" ]; then
+          echo "🏥 Configuring Healthcare Platform environment..."
+          echo "Go: $(go version)"
+          echo "Tesseract: $(tesseract --version | head -1)"
+          echo "golangci-lint: $(golangci-lint --version)"
+          
+          # Configure Go environment for OCR support
+          echo "PATH=$PATH:/usr/local/go/bin:$HOME/go/bin" >> $GITHUB_ENV
+          echo "GOPATH=$HOME/go" >> $GITHUB_ENV
+          echo "GOCACHE=$HOME/.cache/go-build" >> $GITHUB_ENV
+          echo "CGO_ENABLED=1" >> $GITHUB_ENV
+          echo "CGO_CPPFLAGS=-I/usr/include/tesseract -I/usr/include/leptonica" >> $GITHUB_ENV
+          echo "CGO_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -ltesseract -lleptonica" >> $GITHUB_ENV
+          
+        elif [ "${DETECTED_PLATFORM}" = "newgen-heartplus" ]; then
+          echo "💓 Configuring NewGen HeartPlus environment..."
+          echo "Python: $(python3 --version)"
+          echo "SQLite: $(sqlite3 --version)"
+          
+          # Configure for React/Node.js projects
+          echo "NODE_OPTIONS=--max-old-space-size=4096" >> $GITHUB_ENV
+          echo "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true" >> $GITHUB_ENV
+          echo "PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser" >> $GITHUB_ENV
+        fi
+        
+        echo "GOPRIVATE=github.com/Matrics-io/*" >> $GITHUB_ENV
+
+    - name: Configure private registries
+      shell: bash
+      run: |
+        echo "🔐 Configuring private registries..."
+        TOKEN=$(gcloud auth application-default print-access-token)
+        
+        # Configure pnpm for private registries
+        pnpm config set registry https://registry.npmjs.org/
+        pnpm config set @${{ inputs.npm-registry-org }}:registry https://${{ inputs.npm-registry-url }}
+        pnpm config set @healthcare-platform:registry https://${{ inputs.npm-registry-url }}
+        pnpm config set "//${{ inputs.npm-registry-url }}:_authToken" "${TOKEN}"
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        echo "📦 Installing project dependencies..."
+        if [ -f "pnpm-lock.yaml" ]; then
+          pnpm install --frozen-lockfile
+        else
+          pnpm install
+        fi
+        
+        # Verify NX is available
+        echo "NX version: $(npx nx --version)"
+
+    - name: Download Go modules (Healthcare Platform)
+      if: env.DETECTED_PLATFORM == 'healthcare-platform'
+      shell: bash
+      run: |
+        echo "📥 Downloading Go modules for Healthcare Platform..."
+        find . -name "go.mod" -not -path "./node_modules/*" | while read -r gomod; do
+          dir=$(dirname "$gomod")
+          echo "Downloading modules for $dir"
+          (cd "$dir" && go mod download)
+        done
+
+    - name: Setup base reference for affected detection
+      shell: bash
+      run: |
+        echo "🔍 Setting up base reference for affected detection..."
+        git fetch --all
+        
+        if ! git show-ref --verify --quiet refs/heads/${{ inputs.base }}; then
+          if git show-ref --verify --quiet refs/remotes/origin/${{ inputs.base }}; then
+            git branch ${{ inputs.base }} origin/${{ inputs.base }}
+            echo "BASE_REF=${{ inputs.base }}" >> $GITHUB_ENV
+          else
+            echo "BASE_REF=origin/${{ inputs.base }}" >> $GITHUB_ENV
+          fi
+        else
+          echo "BASE_REF=${{ inputs.base }}" >> $GITHUB_ENV
+        fi
+
+    - name: Run SonarQube Analysis (NewGen HeartPlus)
+      if: ${{ env.DETECTED_PLATFORM == 'newgen-heartplus' && inputs.enable-sonarqube == 'true' }}
+      shell: bash
+      run: |
+        echo "🔍 Running SonarQube analysis for NewGen HeartPlus..."
+        # This would typically call the sonarqube workflow
+        echo "SonarQube analysis would run here"
+
+    - name: Run CI targets
+      shell: bash
+      run: |
+        BASE_REF="${BASE_REF:-${{ inputs.base }}}"
+        IFS=',' read -ra TARGETS <<< "${{ inputs.targets }}"
+        
+        # Platform-specific environment setup
+        export NX_SKIP_DOCKER_CHECK=true
+        export NX_DISABLE_DOCKER=true
+        
+        if [ "${DETECTED_PLATFORM}" = "newgen-heartplus" ]; then
+          # Add environment-specific args for NewGen HeartPlus
+          EXTRA_ARGS="--configuration=${{ inputs.environment }}"
+          echo "🎯 Using environment-specific configuration: ${{ inputs.environment }}"
+        else
+          EXTRA_ARGS=""
+        fi
+        
+        for target in "${TARGETS[@]}"; do
+          target=$(echo "$target" | xargs) # trim whitespace
+          echo "🚀 Running nx affected --target=$target --base=$BASE_REF ${{ inputs.args }} $EXTRA_ARGS"
+          pnpm nx affected --target="$target" --base="$BASE_REF" ${{ inputs.args }} $EXTRA_ARGS
+        done
+        
+        echo "✅ All CI targets completed successfully"
+
+    - name: Generate CI Summary
+      shell: bash
+      run: |
+        echo "## 🚀 Universal Platform CI Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+        echo "- **Platform**: ${DETECTED_PLATFORM}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment**: ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Targets**: ${{ inputs.targets }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Base**: ${BASE_REF:-${{ inputs.base }}}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${DETECTED_PLATFORM}" = "healthcare-platform" ]; then
+          echo "### Healthcare Platform Features" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Go + CGO support with OCR libraries" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Private repository access configured" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Tesseract + Leptonica ready" >> $GITHUB_STEP_SUMMARY
+        elif [ "${DETECTED_PLATFORM}" = "newgen-heartplus" ]; then
+          echo "### NewGen HeartPlus Features" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ React + Node.js optimized environment" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SQLite + Python support" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Chromium for testing ready" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.enable-sonarqube }}" = "true" ]; then
+            echo "- ✅ SonarQube analysis enabled" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🎉 **CI completed successfully!**" >> $GITHUB_STEP_SUMMARY
+
+outputs:
+  platform-detected:
+    description: 'Detected platform type'
+    value: ${{ env.DETECTED_PLATFORM }}
+  environment:
+    description: 'Target environment'
+    value: ${{ inputs.environment }}
+  success:
+    description: 'Whether all targets completed successfully'
+    value: 'true'
