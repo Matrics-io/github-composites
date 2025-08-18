@@ -89,23 +89,62 @@ runs:
         echo "Available disk space:"
         df -h "${GITHUB_WORKSPACE}"
 
-        echo "Running Dependency-Check with detailed logging..."
+        echo "Running Dependency-Check with format fallback strategy..."
+        
+        # First, try with multiple formats (XML + HTML) to work around XML-only issues
+        FORMATS_TO_TRY="${{ inputs.formats }},HTML"
+        echo "Trying formats: ${FORMATS_TO_TRY}"
         
         # Run with timeout and verbose output
         timeout $((${{ inputs.timeout }} * 60)) docker run --rm \
+          -e JAVA_OPTS="-Xmx2048m -Xms512m" \
           -v "${GITHUB_WORKSPACE}:/src" \
           -w /src \
           "${{ inputs.image }}" \
           --scan "/src/${{ inputs.scan_path }}" \
           --out "/src/${{ inputs.out_dir }}" \
-          --format "${{ inputs.formats }}" \
+          --format "${FORMATS_TO_TRY}" \
           --project "${SIMPLE_PROJECT_NAME}" \
           --failOnCVSS "${{ inputs.fail_on_cvss }}" \
           --noupdate \
           --enableExperimental \
           --log /src/${{ inputs.out_dir }}/dependency-check.log \
-          ${SUPPRESSION_ARG} 2>&1 | tee dependency-check-output.log || {
-          EXIT_CODE=$?
+          ${SUPPRESSION_ARG} 2>&1 | tee dependency-check-output.log
+        
+        EXIT_CODE=$?
+        
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "Dependency-Check scan completed successfully"
+        elif [ $EXIT_CODE -eq 12 ]; then
+          echo "XML report generation failed, trying JSON format as fallback..."
+          
+          # Fallback: Try with just JSON format
+          timeout $((${{ inputs.timeout }} * 60)) docker run --rm \
+            -e JAVA_OPTS="-Xmx2048m -Xms512m" \
+            -v "${GITHUB_WORKSPACE}:/src" \
+            -w /src \
+            "${{ inputs.image }}" \
+            --scan "/src/${{ inputs.scan_path }}" \
+            --out "/src/${{ inputs.out_dir }}" \
+            --format "JSON" \
+            --project "${SIMPLE_PROJECT_NAME}" \
+            --failOnCVSS "${{ inputs.fail_on_cvss }}" \
+            --noupdate \
+            --enableExperimental \
+            --log /src/${{ inputs.out_dir }}/dependency-check-fallback.log \
+            ${SUPPRESSION_ARG} 2>&1 | tee dependency-check-fallback-output.log
+          
+          FALLBACK_EXIT_CODE=$?
+          
+          if [ $FALLBACK_EXIT_CODE -eq 0 ]; then
+            echo "JSON fallback successful! Report generated in JSON format."
+            EXIT_CODE=0
+          else
+            echo "Fallback also failed with exit code: $FALLBACK_EXIT_CODE"
+          fi
+        fi
+        
+        if [ $EXIT_CODE -ne 0 ]; then
           echo "ERROR: Dependency-Check failed with exit code: $EXIT_CODE"
           
           # Show detailed error information
@@ -114,7 +153,11 @@ runs:
             echo "ERROR: Command timed out after ${{ inputs.timeout }} minutes"
           elif [ $EXIT_CODE -eq 12 ]; then
             echo "ERROR: Report generation failed"
-            echo "This usually indicates an internal error in dependency-check"
+            echo "This usually indicates an internal error in dependency-check XML writer"
+            echo "Common causes:"
+            echo "  - Memory issues during large report generation"
+            echo "  - XML serialization bugs with certain dependency types"
+            echo "  - Character encoding issues in dependency metadata"
           fi
           
           # Show any log files that were created
@@ -135,9 +178,9 @@ runs:
           rm -f "${{ inputs.out_dir }}/test-write.txt"
           
           exit $EXIT_CODE
-        }
+        fi
 
-        echo "Dependency-Check scan completed successfully"
+        echo "Dependency-Check completed successfully"
 
     - name: Check output
       shell: bash
