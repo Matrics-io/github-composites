@@ -66,10 +66,9 @@ runs:
       run: |
         echo "Starting Dependency-Check scan..."
         
-        # Sanitize project name to avoid file path issues
-        SANITIZED_PROJECT_NAME=$(echo "${{ inputs.project_name }}" | sed 's/[\/\@\:]/_/g')
-        echo "Original project name: ${{ inputs.project_name }}"
-        echo "Sanitized project name: ${SANITIZED_PROJECT_NAME}"
+        # Use a much simpler project name to avoid any path issues
+        SIMPLE_PROJECT_NAME="dependency-check-$(date +%Y%m%d-%H%M%S)"
+        echo "Using simplified project name: ${SIMPLE_PROJECT_NAME}"
         
         # Build suppression argument if provided
         SUPPRESSION_ARG=""
@@ -85,8 +84,14 @@ runs:
         # Ensure output directory has proper permissions
         mkdir -p "${{ inputs.out_dir }}"
         chmod 755 "${{ inputs.out_dir }}"
+        
+        # Check available disk space
+        echo "Available disk space:"
+        df -h "${GITHUB_WORKSPACE}"
 
-        # Run with timeout
+        echo "Running Dependency-Check with detailed logging..."
+        
+        # Run with timeout and verbose output
         timeout $((${{ inputs.timeout }} * 60)) docker run --rm \
           -v "${GITHUB_WORKSPACE}:/src" \
           -w /src \
@@ -94,24 +99,40 @@ runs:
           --scan "/src/${{ inputs.scan_path }}" \
           --out "/src/${{ inputs.out_dir }}" \
           --format "${{ inputs.formats }}" \
-          --project "${SANITIZED_PROJECT_NAME}" \
+          --project "${SIMPLE_PROJECT_NAME}" \
           --failOnCVSS "${{ inputs.fail_on_cvss }}" \
           --noupdate \
-          ${SUPPRESSION_ARG} || {
+          --enableExperimental \
+          --log /src/${{ inputs.out_dir }}/dependency-check.log \
+          ${SUPPRESSION_ARG} 2>&1 | tee dependency-check-output.log || {
           EXIT_CODE=$?
           echo "ERROR: Dependency-Check failed with exit code: $EXIT_CODE"
+          
+          # Show detailed error information
+          echo "=== Detailed Error Analysis ==="
           if [ $EXIT_CODE -eq 124 ]; then
             echo "ERROR: Command timed out after ${{ inputs.timeout }} minutes"
           elif [ $EXIT_CODE -eq 12 ]; then
-            echo "ERROR: Report generation failed - this is often due to:"
-            echo "  1. Invalid characters in project name"
-            echo "  2. Insufficient permissions on output directory"
-            echo "  3. Disk space issues"
+            echo "ERROR: Report generation failed"
+            echo "This usually indicates an internal error in dependency-check"
           fi
           
+          # Show any log files that were created
+          echo "=== Available log files ==="
+          find "${{ inputs.out_dir }}" -name "*.log" -exec echo "Found log: {}" \; -exec cat {} \; 2>/dev/null || echo "No log files found"
+          
+          # Show the last part of the command output
+          echo "=== Last 20 lines of command output ==="
+          tail -20 dependency-check-output.log 2>/dev/null || echo "No command output log available"
+          
           # Show output directory status for debugging
-          echo "Output directory status:"
+          echo "=== Output directory status ==="
           ls -la "${{ inputs.out_dir }}" || echo "Output directory not accessible"
+          
+          # Try a simple test to see if we can write to the output directory
+          echo "=== Testing write permissions ==="
+          echo "test" > "${{ inputs.out_dir }}/test-write.txt" && echo "Write test successful" || echo "Write test failed"
+          rm -f "${{ inputs.out_dir }}/test-write.txt"
           
           exit $EXIT_CODE
         }
