@@ -1,0 +1,50 @@
+name: "OWASP Dependency-Check"
+inputs:
+  scan_path:
+    description: "Path to scan"
+    default: "."
+  out_dir:
+    description: "Reports directory"
+    default: "dependency-check-reports"
+  project_name:
+    description: "Project name"
+    default: "${{ github.repository }}@${{ github.sha }}"
+  formats:
+    description: "Report formats"
+    default: "XML"
+  fail_on_cvss:
+    description: "Fail if CVSS >= threshold"
+    default: "7.0"
+  suppression_file:
+    description: "Suppression XML file (optional)"
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Ensure output dir
+      shell: bash
+      run: mkdir -p "${{ inputs.out_dir }}"
+
+    - name: Run Dependency-Check (no update)
+      shell: bash
+      run: |
+        IMAGE="${{ vars.GOOGLE_ARTIFACTS_DOCKER_REGISTRY }}/owasp-dependency-check:main"
+        docker run --rm \
+          -u "$(id -u):$(id -g)" \
+          -v "$PWD:/src" \
+          -w /src \
+          "$IMAGE" \
+          --scan "/src/${{ inputs.scan_path }}" \
+          --out "/src/${{ inputs.out_dir }}" \
+          --format "${{ inputs.formats }}" \
+          --project "${{ inputs.project_name }}" \
+          --failOnCVSS "${{ inputs.fail_on_cvss }}" \
+          --noupdate \
+          $([ -n "${{ inputs.suppression_file }}" ] && echo "--suppression /src/${{ inputs.suppression_file }}")
+
+    - name: Upload reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: dependency-check-reports
+        path: ${{ inputs.out_dir }}
