@@ -66,6 +66,11 @@ runs:
       run: |
         echo "Starting Dependency-Check scan..."
         
+        # Sanitize project name to avoid file path issues
+        SANITIZED_PROJECT_NAME=$(echo "${{ inputs.project_name }}" | sed 's/[\/\@\:]/_/g')
+        echo "Original project name: ${{ inputs.project_name }}"
+        echo "Sanitized project name: ${SANITIZED_PROJECT_NAME}"
+        
         # Build suppression argument if provided
         SUPPRESSION_ARG=""
         if [ -n "${{ inputs.suppression_file }}" ]; then
@@ -77,6 +82,10 @@ runs:
           fi
         fi
 
+        # Ensure output directory has proper permissions
+        mkdir -p "${{ inputs.out_dir }}"
+        chmod 755 "${{ inputs.out_dir }}"
+
         # Run with timeout
         timeout $((${{ inputs.timeout }} * 60)) docker run --rm \
           -v "${GITHUB_WORKSPACE}:/src" \
@@ -85,7 +94,7 @@ runs:
           --scan "/src/${{ inputs.scan_path }}" \
           --out "/src/${{ inputs.out_dir }}" \
           --format "${{ inputs.formats }}" \
-          --project "${{ inputs.project_name }}" \
+          --project "${SANITIZED_PROJECT_NAME}" \
           --failOnCVSS "${{ inputs.fail_on_cvss }}" \
           --noupdate \
           ${SUPPRESSION_ARG} || {
@@ -93,7 +102,17 @@ runs:
           echo "ERROR: Dependency-Check failed with exit code: $EXIT_CODE"
           if [ $EXIT_CODE -eq 124 ]; then
             echo "ERROR: Command timed out after ${{ inputs.timeout }} minutes"
+          elif [ $EXIT_CODE -eq 12 ]; then
+            echo "ERROR: Report generation failed - this is often due to:"
+            echo "  1. Invalid characters in project name"
+            echo "  2. Insufficient permissions on output directory"
+            echo "  3. Disk space issues"
           fi
+          
+          # Show output directory status for debugging
+          echo "Output directory status:"
+          ls -la "${{ inputs.out_dir }}" || echo "Output directory not accessible"
+          
           exit $EXIT_CODE
         }
 
