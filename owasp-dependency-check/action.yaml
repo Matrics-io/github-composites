@@ -22,19 +22,63 @@ inputs:
   suppression_file:
     description: "Suppression XML file (optional)"
     default: ""
+  timeout:
+    description: "Timeout for dependency check in minutes"
+    default: "30"
 
 runs:
   using: "composite"
   steps:
     - name: Ensure output dir
       shell: bash
-      run: mkdir -p "${{ inputs.out_dir }}"
+      run: |
+        mkdir -p "${{ inputs.out_dir }}"
+        echo "Created output directory: ${{ inputs.out_dir }}"
+
+    - name: Debug environment
+      shell: bash
+      run: |
+        echo "=== Dependency-Check Debug Info ==="
+        echo "Image: ${{ inputs.image }}"
+        echo "Scan path: ${{ inputs.scan_path }}"
+        echo "Output dir: ${{ inputs.out_dir }}"
+        echo "Project name: ${{ inputs.project_name }}"
+        echo "Formats: ${{ inputs.formats }}"
+        echo "Fail on CVSS: ${{ inputs.fail_on_cvss }}"
+        echo "Suppression file: ${{ inputs.suppression_file }}"
+        echo "Timeout: ${{ inputs.timeout }} minutes"
+        echo "Workspace: ${GITHUB_WORKSPACE}"
+        echo "Current directory contents:"
+        ls -la "${{ inputs.scan_path }}" || echo "Scan path not found"
+        echo "==================================="
+
+    - name: Test Docker image
+      shell: bash
+      run: |
+        echo "Testing Docker image access..."
+        docker run --rm "${{ inputs.image }}" --version || {
+          echo "ERROR: Failed to run Docker image or get version"
+          exit 1
+        }
 
     - name: Run Dependency-Check (no update)
       shell: bash
       run: |
-        docker run --rm \
-          -u "$(id -u):$(id -g)" \
+        echo "Starting Dependency-Check scan..."
+        
+        # Build suppression argument if provided
+        SUPPRESSION_ARG=""
+        if [ -n "${{ inputs.suppression_file }}" ]; then
+          if [ -f "${{ inputs.suppression_file }}" ]; then
+            SUPPRESSION_ARG="--suppression /src/${{ inputs.suppression_file }}"
+            echo "Using suppression file: ${{ inputs.suppression_file }}"
+          else
+            echo "WARNING: Suppression file specified but not found: ${{ inputs.suppression_file }}"
+          fi
+        fi
+
+        # Run with timeout
+        timeout $((${{ inputs.timeout }} * 60)) docker run --rm \
           -v "${GITHUB_WORKSPACE}:/src" \
           -w /src \
           "${{ inputs.image }}" \
@@ -44,8 +88,36 @@ runs:
           --project "${{ inputs.project_name }}" \
           --failOnCVSS "${{ inputs.fail_on_cvss }}" \
           --noupdate \
-          $([ -n "${{ inputs.suppression_file }}" ] && echo "--suppression /src/${{ inputs.suppression_file }}")
+          ${SUPPRESSION_ARG} || {
+          EXIT_CODE=$?
+          echo "ERROR: Dependency-Check failed with exit code: $EXIT_CODE"
+          if [ $EXIT_CODE -eq 124 ]; then
+            echo "ERROR: Command timed out after ${{ inputs.timeout }} minutes"
+          fi
+          exit $EXIT_CODE
+        }
 
+        echo "Dependency-Check scan completed successfully"
+
+    - name: Check output
+      shell: bash
+      run: |
+        echo "Checking generated reports..."
+        if [ -d "${{ inputs.out_dir }}" ]; then
+          echo "Output directory contents:"
+          ls -la "${{ inputs.out_dir }}"
+          
+          # Check if any reports were generated
+          REPORT_COUNT=$(find "${{ inputs.out_dir }}" -type f | wc -l)
+          echo "Generated $REPORT_COUNT report files"
+          
+          if [ $REPORT_COUNT -eq 0 ]; then
+            echo "WARNING: No report files were generated"
+          fi
+        else
+          echo "ERROR: Output directory not found: ${{ inputs.out_dir }}"
+          exit 1
+        fi
 
     - name: Upload reports
       uses: actions/upload-artifact@v4
