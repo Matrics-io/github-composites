@@ -1,6 +1,9 @@
 name: OWASP Dependency-Check
 description: "Run Dependency-Check using a prebuilt image with cached NVD data"
 inputs:
+  image:
+    description: "Dependency-Check Docker image to use"
+    default: ""
   scan_path:
     description: "Path to scan"
     default: "."
@@ -30,12 +33,11 @@ runs:
     - name: Run Dependency-Check (no update)
       shell: bash
       run: |
-        IMAGE="${{ vars.GOOGLE_ARTIFACTS_DOCKER_REGISTRY }}/owasp-dependency-check:main"
         docker run --rm \
           -u "$(id -u):$(id -g)" \
           -v "$PWD:/src" \
           -w /src \
-          "$IMAGE" \
+          "${{ inputs.image }}" \
           --scan "/src/${{ inputs.scan_path }}" \
           --out "/src/${{ inputs.out_dir }}" \
           --format "${{ inputs.formats }}" \
