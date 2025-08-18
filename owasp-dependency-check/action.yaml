@@ -91,11 +91,10 @@ runs:
 
         echo "Running Dependency-Check with format fallback strategy..."
         
-        # First, try with multiple formats (XML + HTML) to work around XML-only issues
-        FORMATS_TO_TRY="${{ inputs.formats }},HTML"
-        echo "Trying formats: ${FORMATS_TO_TRY}"
+        # First, try with the requested format plus HTML as backup
+        echo "Trying primary format: ${{ inputs.formats }} with HTML backup"
         
-        # Run with timeout and verbose output
+        # Run with timeout and verbose output - use multiple -f flags for multiple formats
         timeout $((${{ inputs.timeout }} * 60)) docker run --rm \
           -e JAVA_OPTS="-Xmx2048m -Xms512m" \
           -v "${GITHUB_WORKSPACE}:/src" \
@@ -103,7 +102,8 @@ runs:
           "${{ inputs.image }}" \
           --scan "/src/${{ inputs.scan_path }}" \
           --out "/src/${{ inputs.out_dir }}" \
-          --format "${FORMATS_TO_TRY}" \
+          --format "${{ inputs.formats }}" \
+          --format "HTML" \
           --project "${SIMPLE_PROJECT_NAME}" \
           --failOnCVSS "${{ inputs.fail_on_cvss }}" \
           --noupdate \
@@ -116,9 +116,9 @@ runs:
         if [ $EXIT_CODE -eq 0 ]; then
           echo "Dependency-Check scan completed successfully"
         elif [ $EXIT_CODE -eq 12 ]; then
-          echo "XML report generation failed, trying JSON format as fallback..."
+          echo "Report generation failed, trying JSON format as fallback..."
           
-          # Fallback: Try with just JSON format
+          # Fallback: Try with just JSON format (most reliable)
           timeout $((${{ inputs.timeout }} * 60)) docker run --rm \
             -e JAVA_OPTS="-Xmx2048m -Xms512m" \
             -v "${GITHUB_WORKSPACE}:/src" \
@@ -158,6 +158,9 @@ runs:
             echo "  - Memory issues during large report generation"
             echo "  - XML serialization bugs with certain dependency types"
             echo "  - Character encoding issues in dependency metadata"
+          elif [ $EXIT_CODE -eq 2 ]; then
+            echo "ERROR: Invalid command line arguments"
+            echo "Check the format specification and other parameters"
           fi
           
           # Show any log files that were created
