@@ -35,7 +35,7 @@ runs:
       run: |
         docker run --rm \
           -u "$(id -u):$(id -g)" \
-          -v "$PWD:/src" \
+          -v "${GITHUB_WORKSPACE}:/src" \
           -w /src \
           "${{ inputs.image }}" \
           --scan "/src/${{ inputs.scan_path }}" \
@@ -45,6 +45,7 @@ runs:
           --failOnCVSS "${{ inputs.fail_on_cvss }}" \
           --noupdate \
           $([ -n "${{ inputs.suppression_file }}" ] && echo "--suppression /src/${{ inputs.suppression_file }}")
+
 
     - name: Upload reports
       uses: actions/upload-artifact@v4
