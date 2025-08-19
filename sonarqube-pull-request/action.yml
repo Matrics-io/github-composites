@@ -1,0 +1,115 @@
+name: Sonarqube Analysis
+
+description: Run SonarQube Scan & Quality Check - Print Results on Pull Request
+
+inputs:
+  scan-exclusions:
+    required: true
+    description: Files to exclude from sonarqube scan
+    default: ""
+  
+  sonar-token:
+    required: true
+    description: Required SonarQube token to run analyses and invoke web services
+    default: ""
+
+  sonar-host-url:
+    required: true
+    description: URL to our SonarQube Server instance
+    default: ""
+
+  project-key:
+    required: true
+    description: Unique identifier assigned to project
+    default: ""
+
+  scan-arguments:
+    required: true
+    description: Additional arguments used during SonarQube Scan
+    default: ""
+
+  test-coverage-exclusions:
+    required: true
+    description: Files that are excluded from test coverage analysis
+    default: "**/*"
+
+runs:
+  using: "composite"
+  steps:
+    - name: SonarQube Scan
+      uses: SonarSource/sonarqube-scan-action@v5
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
+        SONAR_HOST_URL: ${{ inputs.sonar-host-url }}
+      with: 
+        args: >
+          -Dsonar.projectKey=${{ inputs.project-key }}
+          -Dsonar.projectVersion=${{ github.sha }}
+          -Dsonar.exclusions=${{ inputs.scan-exclusions }}
+          -Dsonar.coverage.exclusions=${{ inputs.test-coverage-exclusions }}
+          ${{ inputs.scan-arguments }}
+    
+    # Fail current job if the Quality Gate is red
+    - name: SonarQube Quality Gate
+      uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
+      with:
+        pollingTimeoutSec: 600
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
+    
+    - name: Fetch and Print SonarQube Issues # always print issues after report is uploaded to quality gate
+      if: '!cancelled()' # print issues if quality gate is red - only stop if canceled
+      shell: bash
+      run: | 
+        echo "Fetch and Print SonarQube Issues"
+
+        # Exit immediately if a command exits with a non-zero status.
+        set -e
+
+        # Ensure SONAR_HOST_URL, SONAR_TOKEN, and PROJECT_KEY are set in the environment
+        if [ -z "${SONAR_HOST_URL}" ] || [ -z "${SONAR_TOKEN}" ] || [ -z "${PROJECT_KEY}" ]; then
+          echo "Error: SONAR_HOST_URL, SONAR_TOKEN, and PROJECT_KEY environment variables must be set."
+          exit 1
+        fi
+
+        PAGE_SIZE=500 # Number of issues per page (max 500 per SonarQube API)
+
+        echo "----------------------------------------"
+        echo "SonarQube Issues (Open):"
+
+        page=1
+        while true; do
+          ISSUES_API_URL="${SONAR_HOST_URL}/api/issues/search?projectKeys=${PROJECT_KEY}&statuses=OPEN&p=${page}&ps=${PAGE_SIZE}"
+          RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" "${ISSUES_API_URL}")
+
+          # Check if curl command was successful
+          if [[ $? != 0 ]]; then
+            echo "Error fetching issues from SonarQube API. Exiting."
+            break
+          fi
+
+          # get only issues for our project key
+          PROJECT_ISSUES=$(echo "${RESPONSE}" | jq -r --arg PK "${PROJECT_KEY}" '.issues[] | select(.component | startswith($PK))')
+
+          # print formated line:
+          # - [SEVERITY] File: line number - Fix message
+          FORMATTED_ISSUES=$(echo "$PROJECT_ISSUES" | jq -r --arg PK "${PROJECT_KEY}" '"- [" + .severity + "] " + (.component | sub($PK + ":";"")) + ":line " + (.line | tostring) + " - " + .message')
+
+          if [[ -z "${FORMATTED_ISSUES}" && "$page" -eq 1 ]]; then
+            echo "No open issues found 🎉"
+            break
+          elif [[ -z "${FORMATTED_ISSUES}" ]]; then
+            echo "No more open issues were found or the SonarQube API returned an empty response for your project key."
+            break
+          else
+            echo "${FORMATTED_ISSUES}"
+          fi
+
+          page=$((page + 1))
+        done
+
+        echo "----------------------------------------"
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
+        SONAR_HOST_URL: ${{ inputs.sonar-host-url }}
+        PROJECT_KEY: ${{ inputs.project-key }}
