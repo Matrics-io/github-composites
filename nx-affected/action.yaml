@@ -47,6 +47,21 @@ inputs:
     required: true
     description: Setup Nx CLI
 
+  setup-java:
+    default: "false"
+    required: true
+    description: Setup Java
+
+  java-version:
+    default: "17"
+    required: true
+    description: Java version
+
+  java-distribution:
+    default: "temurin"
+    required: true
+    description: Java distribution
+
   go-version:
     default: ""
     required: true
@@ -135,6 +150,13 @@ runs:
     uses: actions/setup-python@v5
     with:
       python-version: ${{ inputs.python-version }}
+
+  - name: Setup Java
+    if: ${{ inputs.setup-java == 'true' }}
+    uses: actions/setup-java@v4
+    with:
+      java-version: ${{ inputs.java-version }}
+      distribution: ${{ inputs.java-distribution }}
 
   - name: Setup pnpm
     uses: pnpm/action-setup@v4
