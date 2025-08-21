@@ -173,4 +173,4 @@ runs:
     shell: bash
     env:
       NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
-    run: nx affected --verbose ${{ inputs.args }} --target='${{ inputs.target }}'
+    run: nx run-many --all --verbose ${{ inputs.args }} --target='${{ inputs.target }}'
