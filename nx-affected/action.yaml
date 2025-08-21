@@ -179,11 +179,18 @@ runs:
     env:
       GITHUB_TOKEN: ${{ inputs.github-token != '' && inputs.github-token || github.token }}
     run: |
-      # Configure Git to use token authentication for private repos
-      git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+      # Configure Git credentials for GitHub
+      git config --global credential.helper store
+      echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
+      
+      # Alternative method: configure URL rewriting with proper token format
+      git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
       
       # Configure Go to handle private modules while keeping proxy for public ones
       go env -w GOPRIVATE="github.com/Matrics-io/*"
+      
+      # Ensure Git doesn't prompt for passwords
+      git config --global core.askpass ""
 
   - name: Build affected projects using Nx configuration
     if: ${{ inputs.run-target == 'true' }}
