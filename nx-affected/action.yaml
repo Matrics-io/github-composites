@@ -183,7 +183,7 @@ runs:
       git config --global credential.helper store
       echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
       
-      # Alternative method: configure URL rewriting with proper token format
+      # configure URL rewriting with proper token format
       git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
       
       # Configure Go to handle private modules while keeping proxy for public ones
