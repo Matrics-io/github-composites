@@ -95,10 +95,10 @@ inputs:
     required: true
     description: GCP service account key in JSON format
 
-  github-token:
+  gh-pat:
     required: false
     default: ""
-    description: GitHub token for private repository access (required for Go private modules)
+    description: GitHub Personal Access Token for private repository access (required for Go private modules)
 
 runs:
   using: "composite"
@@ -116,6 +116,7 @@ runs:
     with:
       fetch-depth: 0
       filter: tree:0
+      token: ${{ inputs.setup-go == 'true' && inputs.gh-pat || github.token }}
 
   - name: Setup Go
     if: ${{ inputs.setup-go == 'true' }}
@@ -173,24 +174,13 @@ runs:
     with:
       main-branch-name: ${{ inputs.base }}
 
-  - name: Configure Git authentication for Go private modules
+  - name: Configure Git for private modules
     if: ${{ inputs.setup-go == 'true' }}
     shell: bash
-    env:
-      GITHUB_TOKEN: ${{ inputs.github-token != '' && inputs.github-token || github.token }}
     run: |
-      # Configure Git credentials for GitHub
+      git config --global url."https://${{ inputs.gh-pat }}:@github.com/".insteadOf "https://github.com/"
       git config --global credential.helper store
-      echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
-      
-      # configure URL rewriting with proper token format
-      git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
-      
-      # Configure Go to handle private modules while keeping proxy for public ones
-      go env -w GOPRIVATE="github.com/Matrics-io/*"
-      
-      # Ensure Git doesn't prompt for passwords
-      git config --global core.askpass ""
+      git config --global --add safe.directory "*"
 
   - name: Build affected projects using Nx configuration
     if: ${{ inputs.run-target == 'true' }}
