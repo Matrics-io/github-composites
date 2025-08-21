@@ -181,10 +181,13 @@ runs:
       git config --global url."https://${{ inputs.gh-pat }}:@github.com/".insteadOf "https://github.com/"
       git config --global credential.helper store
       git config --global --add safe.directory "*"
+      
+      # Configure Go for private modules
+      go env -w GOPRIVATE="github.com/Matrics-io/*"
 
   - name: Build affected projects using Nx configuration
     if: ${{ inputs.run-target == 'true' }}
     shell: bash
     env:
       NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
-    run: nx run-many --all --verbose ${{ inputs.args }} --target='${{ inputs.target }}' --maxParallel=2
+    run: nx run-many --all --verbose ${{ inputs.args }} --target='${{ inputs.target }}' --maxParallel=1
