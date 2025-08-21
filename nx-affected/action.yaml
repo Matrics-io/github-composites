@@ -136,6 +136,24 @@ runs:
     with:
       node-version: ${{ inputs.node-version }}
   
+  - name: Authenticate to Google Cloud
+    if: ${{ inputs.install-dependencies == 'true' }}
+    uses: google-github-actions/auth@v2
+    with:
+      credentials_json: ${{ inputs.google-credentials }}
+
+  - name: Setup Google Cloud SDK
+    if: ${{ inputs.install-dependencies == 'true' }}
+    uses: google-github-actions/setup-gcloud@v2
+    
+  - name: Configure npm authentication for Artifact Registry
+    if: ${{ inputs.install-dependencies == 'true' }}
+    shell: bash
+    run: |
+      # Configure npm registry authentication
+      npm config set //us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/:_authToken "$(gcloud auth print-access-token)"
+      npm config set //us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/:always-auth true
+
   - name: Install dependencies
     if: ${{ inputs.install-dependencies == 'true'}}
     shell: bash
