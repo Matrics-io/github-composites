@@ -116,7 +116,7 @@ inputs:
     description: GitHub Personal Access Token for private repository access (required for Go private modules)
 
   node-js-max-memory:
-    default: "4096"
+    default: "8192"
     description: Node.js max memory in MB
     required: false
 
