@@ -151,8 +151,8 @@ runs:
     shell: bash
     run: |
       # Configure npm registry authentication
-      npm config set //us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/:_authToken "$(gcloud auth print-access-token)"
-      npm config set //us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/:always-auth true
+      echo "//us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/:_authToken=$(gcloud auth print-access-token)" >> ~/.npmrc
+      echo "//us-east1-npm.pkg.dev/ninetyone-devops/hplus-devops-npm/:always-auth=true" >> ~/.npmrc
 
   - name: Install dependencies
     if: ${{ inputs.install-dependencies == 'true'}}
