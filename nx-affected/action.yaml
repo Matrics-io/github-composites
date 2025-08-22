@@ -218,4 +218,6 @@ runs:
     env:
       NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
       GITHUB_MATRICS_PERSONAL_ACCESS_TOKEN: ${{ inputs.gh-pat }}
-    run: nx run-many --all --verbose ${{ inputs.args }} --target='${{ inputs.target }}' --maxParallel=1 --max_old_space_size=${{ inputs.node-js-max-memory }} --output-style=stream
+      NODE_OPTIONS: --max_old_space_size=${{ inputs.node-js-max-memory }}
+      NODE_NO_CACHE: 1
+    run: nx run-many --all --verbose ${{ inputs.args }} --target='${{ inputs.target }}' --maxParallel=1 --output-style=stream
