@@ -219,7 +219,7 @@ runs:
       GITHUB_MATRICS_PERSONAL_ACCESS_TOKEN: ${{ inputs.gh-pat }}
       NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
     run: |
-      nx --verbose ${{ inputs.args }} --target='${{ inputs.target }}' \
+      nx run-many --verbose ${{ inputs.args }} --target='${{ inputs.target }}' \
         --maxParallel=1 \
         --output-style=stream \
         --no-cache \
