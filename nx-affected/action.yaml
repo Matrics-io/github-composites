@@ -116,7 +116,7 @@ inputs:
     description: GitHub Personal Access Token for private repository access (required for Go private modules)
 
   node-js-max-memory:
-    default: "8192"
+    default: "4096"
     description: Node.js max memory in MB
     required: false
 
@@ -217,6 +217,5 @@ runs:
     shell: bash
     env:
       NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
-      NODE_OPTIONS: --max_old_space_size=${{ inputs.node-js-max-memory }}
       GITHUB_MATRICS_PERSONAL_ACCESS_TOKEN: ${{ inputs.gh-pat }}
-    run: nx run-many --all --output-style=stream --verbose ${{ inputs.args }} --target='${{ inputs.target }}' --maxParallel=1
+    run: nx run-many --all --verbose ${{ inputs.args }} --target='${{ inputs.target }}' --maxParallel=1 --max_old_space_size=${{ inputs.node-js-max-memory }} --output-style=stream
