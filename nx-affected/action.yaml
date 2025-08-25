@@ -255,4 +255,6 @@ runs:
         --maxParallel=1 \
         --output-style=stream \
         --no-cloud \
-        --no-cache 
+        --no-cache \
+        --optimize-for-size \
+        --gc_interval=100
