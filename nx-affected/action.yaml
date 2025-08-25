@@ -120,6 +120,11 @@ inputs:
     description: Node.js max memory in MB
     required: false
 
+  setup-ocr:
+    default: "false"
+    required: false
+    description: Setup Tesseract OCR and Leptonica libraries for PDF processing
+
 runs:
   using: "composite"
   steps:
@@ -137,6 +142,18 @@ runs:
       fetch-depth: 0
       filter: tree:0
       token: ${{ inputs.setup-go == 'true' && inputs.gh-pat || github.token }}
+
+  - name: Install Tesseract OCR and Leptonica libraries
+    if: ${{ inputs.setup-ocr == 'true' }}
+    shell: bash
+    run: |
+      echo "Installing Tesseract OCR and Leptonica libraries..."
+      sudo apt-get update
+      sudo apt-get install -y tesseract-ocr libtesseract-dev libleptonica-dev pkg-config
+      
+      # Verify installation
+      echo "Tesseract version: $(tesseract --version | head -1)"
+      echo "Leptonica libraries installed successfully"
 
   - name: Setup Go
     if: ${{ inputs.setup-go == 'true' }}
@@ -211,6 +228,20 @@ runs:
       
       # Configure Go for private modules
       go env -w GOPRIVATE="github.com/Matrics-io/*"
+
+  - name: Configure CGO environment for OCR support
+    if: ${{ inputs.setup-ocr == 'true' && inputs.setup-go == 'true' }}
+    shell: bash
+    run: |
+      echo "Configuring CGO environment for OCR support..."
+      
+      # Set CGO environment variables for Tesseract and Leptonica
+      echo "CGO_ENABLED=1" >> $GITHUB_ENV
+      echo "CGO_CPPFLAGS=-I/usr/include/tesseract -I/usr/include/leptonica" >> $GITHUB_ENV
+      echo "CGO_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -ltesseract -lleptonica" >> $GITHUB_ENV
+      
+      # Verify pkg-config can find the libraries
+      pkg-config --cflags --libs tesseract lept
 
   - name: Build affected projects using Nx configuration
     if: ${{ inputs.run-target == 'true' }}
