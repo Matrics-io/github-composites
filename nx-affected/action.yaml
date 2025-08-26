@@ -252,7 +252,7 @@ runs:
       NODE_OPTIONS: --max-old-space-size=${{ inputs.node-js-max-memory }}
       VITE_BFF_BASE_URL: https://bff.heartplus.ai/trpc
       VITE_ENVIRONMENT: local
-      VITE_SHERLOQ_MFE_URL: https://sherloq-web-991303362233.us-east1.run.app
+      VITE_SHERLOQ_MFE_URL: https://sherloq-web-991303362233.us-east1.run.app/sherloq-chat-parcel.js
     run: |
       nx run-many --verbose ${{ inputs.args }} --target='${{ inputs.target }}' \
         --maxParallel=1 \
