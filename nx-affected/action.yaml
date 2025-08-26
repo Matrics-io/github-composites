@@ -250,6 +250,9 @@ runs:
       GITHUB_MATRICS_PERSONAL_ACCESS_TOKEN: ${{ inputs.gh-pat }}
       NX_NO_CLOUD: ${{ inputs.use-nx-cloud == 'false' }}
       NODE_OPTIONS: --max-old-space-size=${{ inputs.node-js-max-memory }}
+      VITE_BFF_BASE_URL: https://bff.heartplus.ai/trpc
+      VITE_ENVIRONMENT: local
+      VITE_SHERLOQ_MFE_URL: https://sherloq-web-991303362233.us-east1.run.app
     run: |
       nx run-many --verbose ${{ inputs.args }} --target='${{ inputs.target }}' \
         --maxParallel=1 \
