@@ -1,0 +1,34 @@
+name: 'Dependency Check'
+description: 'Github action to execute dependency check as part of a github workflow'
+inputs:
+    project:
+        description: 'The project name'
+        required: true
+    path:
+        description: 'The path to the project'
+        required: true  
+    format:
+        description: 'The format to use for the report'
+        required: true
+    out:
+        description: 'The output directory'
+        required: true
+        default: 'reports'
+    args:
+        description: 'The arguments to pass to the dependency check'
+        required: false
+runs:
+    using: 'docker'
+    image: 'Dockerfile'
+    args:
+
+        - '--project'
+        - '${{ inputs.project }}'
+        - '--scan'
+        - '/github/workspace/${{ inputs.path }}'
+        - '--format' 
+        - '${{ inputs.format }}'
+        - '--out'
+        - '/github/workspace/${{ inputs.out }}'
+        - '--noupdate'
+        - ${{ inputs.args }}
