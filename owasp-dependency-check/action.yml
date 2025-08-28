@@ -1,5 +1,5 @@
 name: 'Dependency Check'
-description: 'Github action to execute dependency check as part of a github workflow'
+description: 'Github action to execute dependency check with BOM generation'
 inputs:
     project:
         description: 'The project name'
@@ -17,18 +17,27 @@ inputs:
     args:
         description: 'The arguments to pass to the dependency check'
         required: false
+    generate_bom:
+        description: 'Generate CycloneDX BOM'
+        required: false
+        default: 'true'
 runs:
-    using: 'docker'
-    image: 'Dockerfile'
-    args:
-
-        - '--project'
-        - '${{ inputs.project }}'
-        - '--scan'
-        - '/github/workspace/${{ inputs.path }}'
-        - '--format' 
-        - '${{ inputs.format }}'
-        - '--out'
-        - '/github/workspace/${{ inputs.out }}'
-        - '--noupdate'
-        - ${{ inputs.args }}
+    using: 'composite'
+    steps:
+        - name: Run Dependency Check
+          uses: docker://owasp/dependency-check-action:latest
+          with:
+            args: >
+              --project ${{ inputs.project }}
+              --scan /github/workspace/${{ inputs.path }}
+              --format ${{ inputs.format }}
+              --out /github/workspace/${{ inputs.out }}
+              --noupdate
+              ${{ inputs.args }}
+        
+        - name: Generate CycloneDX BOM
+          if: inputs.generate_bom == 'true'
+          uses: CycloneDX/gh-node-module-generatebom@master
+          with:
+            output: ${{ inputs.out }}/bom.xml
+          shell: bash
