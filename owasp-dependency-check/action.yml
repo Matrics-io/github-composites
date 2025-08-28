@@ -39,15 +39,22 @@ runs:
       if: ${{ inputs.generate_bom == 'true' }}
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
     
     - name: Generate CycloneDX BOM
       if: ${{ inputs.generate_bom == 'true' }}
       run: |
         echo "Installing CycloneDX cdxgen..."
-        npm install -g @cyclonedx/cdxgen
+        npm install -g @cyclonedx/cdxgen@latest
         echo "Generating BOM at ${{ inputs.out }}/bom.xml..."
+        mkdir -p ${{ inputs.out }}
         cdxgen -r -t js -o ${{ inputs.out }}/bom.xml /github/workspace/${{ inputs.path }}
-        echo "BOM generation completed!"
+        if [ -f "${{ inputs.out }}/bom.xml" ]; then
+          echo "BOM generation completed successfully!"
+          echo "BOM file size: $(wc -c < ${{ inputs.out }}/bom.xml) bytes"
+        else
+          echo "Warning: BOM file was not created"
+          exit 1
+        fi
         ls -la ${{ inputs.out }}/
       shell: bash 
