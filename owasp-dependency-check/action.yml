@@ -49,17 +49,16 @@ runs:
         echo "Current working directory: $(pwd)"
         echo "Creating output directory: ${{ inputs.out }}"
         mkdir -p ${{ inputs.out }}
-        chmod 755 ${{ inputs.out }}
         echo "Generating BOM at ${{ inputs.out }}/bom.xml..."
         echo "Scanning path: ${{ inputs.path }}"
         cdxgen -r -t js -o ${{ inputs.out }}/bom.xml ${{ inputs.path }}
         if [ -f "${{ inputs.out }}/bom.xml" ]; then
           echo "BOM generation completed successfully!"
           echo "BOM file size: $(wc -c < ${{ inputs.out }}/bom.xml) bytes"
-          chmod 644 ${{ inputs.out }}/bom.xml
         else
           echo "Warning: BOM file was not created"
           exit 1
         fi
+        echo "Contents of output directory:"
         ls -la ${{ inputs.out }}/
       shell: bash 
