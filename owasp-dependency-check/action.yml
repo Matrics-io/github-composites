@@ -1,43 +1,53 @@
 name: 'Dependency Check'
 description: 'Github action to execute dependency check with BOM generation'
 inputs:
-    project:
-        description: 'The project name'
-        required: true
-    path:
-        description: 'The path to the project'
-        required: true  
-    format:
-        description: 'The format to use for the report'
-        required: true
-    out:
-        description: 'The output directory'
-        required: true
-        default: 'reports'
-    args:
-        description: 'The arguments to pass to the dependency check'
-        required: false
-    generate_bom:
-        description: 'Generate CycloneDX BOM'
-        required: false
-        default: 'true'
+  project:
+    description: 'The project name'
+    required: true
+  path:
+    description: 'The path to the project'
+    required: true  
+  format:
+    description: 'The format to use for the report'
+    required: true
+  out:
+    description: 'The output directory'
+    required: true
+    default: 'reports'
+  args:
+    description: 'The arguments to pass to the dependency check'
+    required: false
+  generate_bom:
+    description: 'Generate CycloneDX BOM'
+    required: false
+    default: 'true'
 runs:
-    using: 'composite'
-    steps:
-        - name: Run Dependency Check
-          uses: docker://owasp/dependency-check-action:latest
-          with:
-            args: >
-              --project ${{ inputs.project }}
-              --scan /github/workspace/${{ inputs.path }}
-              --format ${{ inputs.format }}
-              --out /github/workspace/${{ inputs.out }}
-              --noupdate
-              ${{ inputs.args }}
-        
-        - name: Generate CycloneDX BOM
-          if: inputs.generate_bom == 'true'
-          uses: CycloneDX/gh-node-module-generatebom@master
-          with:
-            output: ${{ inputs.out }}/bom.xml
-          shell: bash
+  using: 'composite'
+  steps:
+    - name: Run Dependency Check
+      uses: docker://owasp/dependency-check-action:latest
+      with:
+        args: >
+          --project ${{ inputs.project }}
+          --scan /github/workspace/${{ inputs.path }}
+          --format ${{ inputs.format }}
+          --out /github/workspace/${{ inputs.out }}
+          --noupdate
+          ${{ inputs.args }}
+    
+    - name: Setup Node.js for BOM Generation
+      if: ${{ inputs.generate_bom == 'true' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Generate CycloneDX BOM
+      if: ${{ inputs.generate_bom == 'true' }}
+      run: |
+        echo "Installing CycloneDX cdxgen..."
+        npm install -g @cyclonedx/cdxgen
+        echo "Generating BOM at ${{ inputs.out }}/bom.xml..."
+        cdxgen -r -t js -o ${{ inputs.out }}/bom.xml /github/workspace/${{ inputs.path }}
+        echo "BOM generation completed!"
+        ls -la ${{ inputs.out }}/
+      shell: bash 
