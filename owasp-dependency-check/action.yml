@@ -19,24 +19,28 @@ inputs:
     required: false
 
 
+
+
 runs:
   using: 'composite'
   steps:
     - name: Run OWASP Dependency-Check
       shell: bash
       run: |
-        # Create an empty variable for the format arguments
+        # Use the specialized image with the nightly database
+        IMAGE="owasp/dependency-check-action:latest"
+        
         FORMAT_ARGS=""
-        # Loop through the space-separated list in the format input
         for fmt in ${{ inputs.format }}; do
           FORMAT_ARGS="$FORMAT_ARGS --format $fmt"
         done
 
         docker run --rm \
           -v ${{ github.workspace }}:/src \
-          owasp/dependency-check:latest \
+          $IMAGE \
           --project "${{ inputs.project }}" \
           --scan "/src/${{ inputs.path }}" \
           --out "/src/${{ inputs.out }}" \
+          --noupdate \
           $FORMAT_ARGS \
           ${{ inputs.args }}
