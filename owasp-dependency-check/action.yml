@@ -37,6 +37,6 @@ runs:
     
     - name: Generate CycloneDX BOM
       if: ${{ inputs.generate_bom == 'true' }}
-      uses: CycloneDX/cdxgen-action@main
+      uses: CycloneDX/cdxgen-action@v1
       with:
         output: "./${{ inputs.out }}/bom.xml" 
