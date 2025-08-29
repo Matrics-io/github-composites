@@ -8,7 +8,7 @@ inputs:
     description: 'The path to the project'
     required: true  
   format:
-    description: "The report format. To generate bom.xml, set this to 'ALL' or 'CycloneDX'."
+    description: "The report format(s). Example: 'XML CycloneDX'."
     required: true
   out:
     description: 'The output directory'
@@ -18,16 +18,18 @@ inputs:
     description: 'The arguments to pass to the dependency check'
     required: false
 
-
-
-
 runs:
   using: 'composite'
   steps:
-    - name: Run OWASP Dependency-Check (XML + CycloneDX)
+    - name: Run OWASP Dependency-Check
       shell: bash
       run: |
         IMAGE="owasp/dependency-check-action:latest"
+
+        FORMAT_ARGS=""
+        for fmt in ${{ inputs.format }}; do
+          FORMAT_ARGS="$FORMAT_ARGS --format $fmt"
+        done
 
         docker run --rm \
           -v ${{ github.workspace }}:/src \
@@ -36,11 +38,10 @@ runs:
           --scan "/src/${{ inputs.path }}" \
           --out "/src/${{ inputs.out }}" \
           --noupdate \
-          --format XML \
-          --format CycloneDX \
+          $FORMAT_ARGS \
           ${{ inputs.args }}
 
-        # Normalize CycloneDX to bom.xml
+        # If CycloneDX was requested, normalize its filename to bom.xml
         if [ -f "${{ github.workspace }}/${{ inputs.out }}/dependency-check-report.cyclonedx.xml" ]; then
           mv "${{ github.workspace }}/${{ inputs.out }}/dependency-check-report.cyclonedx.xml" \
              "${{ github.workspace }}/${{ inputs.out }}/bom.xml"
