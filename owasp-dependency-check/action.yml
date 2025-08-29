@@ -37,6 +37,6 @@ runs:
     
     - name: Generate CycloneDX BOM
       if: ${{ inputs.generate_bom == 'true' }}
-      uses: docker://cyclonedx/cdxgen:latest
+      uses: CycloneDX/cdxgen-action@main
       with:
-        args: -r -t js -o /github/workspace/${{ inputs.out }}/bom.xml /github/workspace/${{ inputs.path }} 
+        output: "./${{ inputs.out }}/bom.xml" 
