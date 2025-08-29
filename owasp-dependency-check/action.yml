@@ -8,19 +8,17 @@ inputs:
     description: 'The path to the project'
     required: true  
   format:
-    description: 'The format to use for the report'
+    description: "The report format. To generate bom.xml, set this to 'ALL' or 'CycloneDX'."
     required: true
   out:
     description: 'The output directory'
-    required: true
+    required: false 
     default: 'reports'
   args:
     description: 'The arguments to pass to the dependency check'
     required: false
-  generate_bom:
-    description: 'Generate CycloneDX BOM'
-    required: false
-    default: 'true'
+
+
 runs:
   using: 'composite'
   steps:
@@ -34,9 +32,3 @@ runs:
           --out /github/workspace/${{ inputs.out }}
           --noupdate
           ${{ inputs.args }}
-    
-    - name: Generate CycloneDX BOM
-      if: ${{ inputs.generate_bom == 'true' }}
-      uses: CycloneDX/cdxgen-action@v1
-      with:
-        output: "./${{ inputs.out }}/bom.xml" 
