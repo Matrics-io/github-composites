@@ -22,13 +22,21 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Run Dependency Check
-      uses: docker://owasp/dependency-check-action:latest
-      with:
-        args: >
-          --project ${{ inputs.project }}
-          --scan /github/workspace/${{ inputs.path }}
-          --format ${{ inputs.format }}
-          --out /github/workspace/${{ inputs.out }}
-          --noupdate
+    - name: Run OWASP Dependency-Check
+      shell: bash
+      run: |
+        # Create an empty variable for the format arguments
+        FORMAT_ARGS=""
+        # Loop through the space-separated list in the format input
+        for fmt in ${{ inputs.format }}; do
+          FORMAT_ARGS="$FORMAT_ARGS --format $fmt"
+        done
+
+        docker run --rm \
+          -v ${{ github.workspace }}:/src \
+          owasp/dependency-check:latest \
+          --project "${{ inputs.project }}" \
+          --scan "/src/${{ inputs.path }}" \
+          --out "/src/${{ inputs.out }}" \
+          $FORMAT_ARGS \
           ${{ inputs.args }}
