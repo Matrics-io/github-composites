@@ -35,24 +35,6 @@ runs:
           --noupdate \
           --format XML \
           ${{ inputs.args }}
+          
 
-    - name: Run OWASP Dependency-Check (CycloneDX SBOM)
-      shell: bash
-      run: |
-        IMAGE="owasp/dependency-check:latest"
-
-        docker run --rm \
-          -v ${{ github.workspace }}:/src \
-          $IMAGE \
-          --project "${{ inputs.project }}" \
-          --scan "/src/${{ inputs.path }}" \
-          --out "/src/${{ inputs.out }}" \
-          --noupdate \
-          --format CycloneDX \
-          ${{ inputs.args }}
-
-        # Rename CycloneDX file to bom.xml
-        if [ -f "${{ github.workspace }}/${{ inputs.out }}/dependency-check-report.cyclonedx.xml" ]; then
-          mv "${{ github.workspace }}/${{ inputs.out }}/dependency-check-report.cyclonedx.xml" \
-             "${{ github.workspace }}/${{ inputs.out }}/bom.xml"
-        fi
+  
