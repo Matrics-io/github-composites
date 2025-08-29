@@ -109,6 +109,7 @@ jobs:
 | `format` | Output format (table,json,sarif,template) | No | `"sarif"` |
 | `skip_dirs` | Directories to skip (comma-separated) | No | `""` |
 | `skip_files` | Files to skip (comma-separated) | No | `""` |
+| `upload_sarif` | Upload SARIF to GitHub Security tab | No | `"true"` |
 
 *Required when `scan_type` is `"image"`
 
@@ -268,7 +269,7 @@ steps:
 
 ```yaml
 name: CI/CD Pipeline
-1
+
 on:
   push:
     branches: [ main ]
@@ -305,6 +306,7 @@ jobs:
           scan_type: "image"
           image: "myapp:latest"
           fail_on_cvss: "7.0"
+          upload_sarif: "false"  # Disable Security tab upload if not enabled
 
   deploy:
     runs-on: ${{ vars.DEFAULT_GITHUB_RUNNER }}
@@ -314,6 +316,73 @@ jobs:
       - name: Deploy to Production
         run: echo "Deploying..."
 ```
+
+## Testing Vulnerability Detection
+
+To test that your Trivy filesystem scan is working correctly, you can create test files with known vulnerable dependencies:
+
+### Test Files for Different Languages
+
+#### Node.js Test
+```json
+// package.json
+{
+  "name": "test-vulnerable-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "lodash": "4.17.15",
+    "axios": "0.21.1",
+    "moment": "2.29.1"
+  }
+}
+```
+
+#### Python Test
+```txt
+# requirements.txt
+Flask==2.0.1
+Django==3.2.0
+requests==2.25.1
+urllib3==1.26.5
+```
+
+#### Java Test
+```xml
+<!-- pom.xml -->
+<dependency>
+    <groupId>org.apache.logging.log4j</groupId>
+    <artifactId>log4j-core</artifactId>
+    <version>2.14.1</version>
+</dependency>
+```
+
+### Test Workflow
+```yaml
+name: Test Vulnerability Detection
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-scan:
+    runs-on: ${{ vars.DEFAULT_GITHUB_RUNNER }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Test Vulnerability Scan
+        uses: Matrics-io/github-composites/trivy@main
+        with:
+          scan_type: "fs"
+          scan_path: "."
+          fail_on_cvss: "1.0"  # Lower threshold to see all vulnerabilities
+          out_dir: "test-reports"
+```
+
+### Expected Results
+With test files containing vulnerable dependencies, you should see:
+- SARIF file with `results` array containing vulnerability details
+- Specific CVE IDs and severity levels
+- File paths where vulnerabilities were detected
 
 ## Troubleshooting
 
@@ -336,6 +405,11 @@ jobs:
 4. **Permission Issues**
    - Ensure `security-events: write` permission is set
    - Check repository secrets for private registries
+
+5. **GitHub Security Tab Upload Fails**
+   - Set `upload_sarif: "false"` if Code Security is not enabled in your repository
+   - Check if your repository has GitHub Advanced Security enabled
+   - Verify `security-events: write` permission is set in workflow
 
 ### Implementation Details
 

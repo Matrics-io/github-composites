@@ -68,7 +68,7 @@ runs:
         format: '${{ inputs.format }}'
         output: '${{ inputs.out_dir }}/trivy.sarif'
         severity: '${{ inputs.severity }}'
-        exit-code: '1'
+        exit-code: '0'
         ignore-unfixed: '${{ inputs.ignore_unfixed }}'
         vuln-type: '${{ inputs.vuln_type }}'
         skip-dirs: '${{ inputs.skip_dirs }}'
@@ -84,7 +84,7 @@ runs:
         format: '${{ inputs.format }}'
         output: '${{ inputs.out_dir }}/trivy.sarif'
         severity: '${{ inputs.severity }}'
-        exit-code: '1'
+        exit-code: '0'
         ignore-unfixed: '${{ inputs.ignore_unfixed }}'
         vuln-type: '${{ inputs.vuln_type }}'
         timeout: '${{ inputs.timeout }}m'
@@ -95,6 +95,50 @@ runs:
         name: trivy-sarif-reports
         path: ${{ inputs.out_dir }}/*.sarif
         if-no-files-found: error
+
+    - name: Check for vulnerabilities and fail if found
+      shell: bash
+      run: |
+        echo "Checking SARIF file for vulnerabilities..."
+        echo "CVSS threshold: ${{ inputs.fail_on_cvss }}"
+        
+        if [ -f "${{ inputs.out_dir }}/trivy.sarif" ]; then
+          echo "✅ SARIF file created: ${{ inputs.out_dir }}/trivy.sarif"
+          echo "File size: $(wc -c < ${{ inputs.out_dir }}/trivy.sarif) bytes"
+          
+          # Check if SARIF contains vulnerabilities (not empty results array)
+          if grep -q '"results":\s*\[\s*\]' "${{ inputs.out_dir }}/trivy.sarif"; then
+            echo "✅ No vulnerabilities found - build passes"
+          else
+            echo "⚠️  Vulnerabilities found - checking CVSS scores..."
+            
+            # Extract CVSS scores from SARIF and check against threshold
+            cvss_scores=$(grep -o '"cvssScore":[0-9.]*' "${{ inputs.out_dir }}/trivy.sarif" | grep -o '[0-9.]*' || echo "")
+            
+            if [ -n "$cvss_scores" ]; then
+              echo "Found CVSS scores: $cvss_scores"
+              # Check if any score >= threshold
+              threshold=${{ inputs.fail_on_cvss }}
+              for score in $cvss_scores; do
+                if (( $(echo "$score >= $threshold" | bc -l) )); then
+                  echo "❌ CVSS score $score >= $threshold - build fails"
+                  echo "Check ${{ inputs.out_dir }}/trivy.sarif for vulnerability details"
+                  echo "SARIF content preview:"
+                  head -30 "${{ inputs.out_dir }}/trivy.sarif"
+                  exit 1
+                fi
+              done
+              echo "✅ All CVSS scores below threshold $threshold - build passes"
+            else
+              echo "❌ Vulnerabilities found but no CVSS scores - build fails"
+              echo "Check ${{ inputs.out_dir }}/trivy.sarif for vulnerability details"
+              exit 1
+            fi
+          fi
+        else
+          echo "❌ SARIF file was not created"
+          exit 1
+        fi
 
     # - name: Upload to GitHub Security tab
     #   if: always()
