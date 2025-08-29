@@ -1,40 +1,70 @@
 name: 'Dependency Check'
-description: 'Github action to execute dependency check with BOM generation'
+description: 'Runs a full OWASP, SBOM, and dependency scan and uploads reports'
 inputs:
   project:
-    description: 'The project name'
+    description: 'The project name for the OWASP scan'
     required: true
   path:
-    description: 'The path to the project'
+    description: 'The path to the project to scan'
     required: true  
   format:
-    description: "The report format(s). Example: 'XML CycloneDX'."
-    required: true
+    description: "The report format for the OWASP scan (e.g., 'XML', 'HTML')."
+    required: false
+    default: 'XML'
   out:
-    description: 'The output directory'
+    description: 'The output directory for all reports'
     required: false 
     default: 'reports'
+  node-version:
+    description: 'The Node.js version to use'
+    required: false
+    default: '20'
+  artifact-name:
+    description: 'The name for the uploaded artifact'
+    required: false
+    default: 'Security Scan Reports'
   args:
-    description: 'The arguments to pass to the dependency check'
+    description: 'Additional arguments to pass to the dependency check'
     required: false
 
 runs:
   using: 'composite'
   steps:
-    - name: Run OWASP Dependency-Check (XML only)
+    - name: Create Reports Directory
+      shell: bash
+      run: mkdir -p ${{ inputs.out }}
+
+    - name: Run OWASP Dependency-Check
       shell: bash
       run: |
         IMAGE="owasp/dependency-check-action:latest"
-
         docker run --rm \
           -v ${{ github.workspace }}:/src \
           $IMAGE \
           --project "${{ inputs.project }}" \
           --scan "/src/${{ inputs.path }}" \
           --out "/src/${{ inputs.out }}" \
+          --format "${{ inputs.format }}" \
           --noupdate \
-          --format XML \
           ${{ inputs.args }}
           
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ inputs.node-version }}
 
-  
+    - name: Install dependencies
+      shell: bash
+      run: npm install
+
+    - name: Generate CycloneDX SBOM
+      uses: CycloneDX/cdxgen-action@v1
+      with:
+        path: ${{ inputs.path }}
+        output: "${{ inputs.out }}/bom.xml"
+
+    - name: Upload All Reports
+      uses: actions/upload-artifact@v4
+      with:
+         name: ${{ inputs.artifact-name }}
+         path: ${{ github.workspace }}/${{ inputs.out }}
