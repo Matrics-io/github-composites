@@ -24,16 +24,10 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Run OWASP Dependency-Check
+    - name: Run OWASP Dependency-Check (XML + CycloneDX)
       shell: bash
       run: |
-        # Use the specialized image with the nightly database
         IMAGE="owasp/dependency-check-action:latest"
-        
-        FORMAT_ARGS=""
-        for fmt in ${{ inputs.format }}; do
-          FORMAT_ARGS="$FORMAT_ARGS --format $fmt"
-        done
 
         docker run --rm \
           -v ${{ github.workspace }}:/src \
@@ -42,5 +36,12 @@ runs:
           --scan "/src/${{ inputs.path }}" \
           --out "/src/${{ inputs.out }}" \
           --noupdate \
-          $FORMAT_ARGS \
+          --format XML \
+          --format CycloneDX \
           ${{ inputs.args }}
+
+        # Normalize CycloneDX to bom.xml
+        if [ -f "${{ github.workspace }}/${{ inputs.out }}/dependency-check-report.cyclonedx.xml" ]; then
+          mv "${{ github.workspace }}/${{ inputs.out }}/dependency-check-report.cyclonedx.xml" \
+             "${{ github.workspace }}/${{ inputs.out }}/bom.xml"
+        fi
