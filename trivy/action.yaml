@@ -1,0 +1,149 @@
+name: Trivy Security Scan
+description: "Run Trivy vulnerability scanner for Docker images or filesystem with SARIF output and CVSS threshold enforcement"
+inputs:
+  scan_type:
+    description: "Type of scan to perform (image or fs)"
+    required: true
+    default: "fs"
+  image:
+    description: "Docker image to scan (required when scan_type is 'image')"
+    required: false
+    default: ""
+  scan_path:
+    description: "Path to scan for filesystem vulnerabilities"
+    required: false
+    default: "."
+  out_dir:
+    description: "Directory for generated reports"
+    required: false
+    default: "reports"
+  fail_on_cvss:
+    description: "Fail if CVSS score >= threshold (0.0-10.0)"
+    required: false
+    default: "7.0"
+  severity:
+    description: "Minimum severity level to report (UNKNOWN, LOW, MEDIUM, HIGH, CRITICAL)"
+    required: false
+    default: "UNKNOWN"
+  timeout:
+    description: "Timeout for scan in minutes"
+    required: false
+    default: "30"
+  ignore_unfixed:
+    description: "Ignore unfixed vulnerabilities"
+    required: false
+    default: "false"
+  vuln_type:
+    description: "Vulnerability types to scan (os,library)"
+    required: false
+    default: "os,library"
+  format:
+    description: "Output format (table,json,sarif,template)"
+    required: false
+    default: "sarif"
+  skip_dirs:
+    description: "Directories to skip during scan (comma-separated)"
+    required: false
+    default: ""
+  skip_files:
+    description: "Files to skip during scan (comma-separated)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create output directory
+      shell: bash
+      run: |
+        mkdir -p "${{ inputs.out_dir }}"
+        echo "Created output directory: ${{ inputs.out_dir }}"
+
+    - name: Scan filesystem
+      if: inputs.scan_type == 'fs'
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '${{ inputs.scan_path }}'
+        format: '${{ inputs.format }}'
+        output: '${{ inputs.out_dir }}/trivy.sarif'
+        severity: '${{ inputs.severity }}'
+        exit-code: '0'
+        ignore-unfixed: '${{ inputs.ignore_unfixed }}'
+        vuln-type: '${{ inputs.vuln_type }}'
+        skip-dirs: '${{ inputs.skip_dirs }}'
+        skip-files: '${{ inputs.skip_files }}'
+        timeout: '${{ inputs.timeout }}m'
+
+    - name: Scan Docker image
+      if: inputs.scan_type == 'image'
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'image'
+        image-ref: '${{ inputs.image }}'
+        format: '${{ inputs.format }}'
+        output: '${{ inputs.out_dir }}/trivy.sarif'
+        severity: '${{ inputs.severity }}'
+        exit-code: '0'
+        ignore-unfixed: '${{ inputs.ignore_unfixed }}'
+        vuln-type: '${{ inputs.vuln_type }}'
+        timeout: '${{ inputs.timeout }}m'
+
+    - name: Upload SARIF reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-sarif-reports
+        path: ${{ inputs.out_dir }}/*.sarif
+        if-no-files-found: error
+
+    - name: Check for vulnerabilities and fail if found
+      shell: bash
+      run: |
+        echo "Checking SARIF file for vulnerabilities..."
+        echo "CVSS threshold: ${{ inputs.fail_on_cvss }}"
+        
+        if [ -f "${{ inputs.out_dir }}/trivy.sarif" ]; then
+          echo "✅ SARIF file created: ${{ inputs.out_dir }}/trivy.sarif"
+          echo "File size: $(wc -c < ${{ inputs.out_dir }}/trivy.sarif) bytes"
+          
+          # Check if SARIF contains vulnerabilities (not empty results array)
+          if grep -q '"results":\s*\[\s*\]' "${{ inputs.out_dir }}/trivy.sarif"; then
+            echo "✅ No vulnerabilities found - build passes"
+          else
+            echo "⚠️  Vulnerabilities found - checking CVSS scores..."
+            
+            # Extract CVSS scores from SARIF and check against threshold
+            cvss_scores=$(grep -o '"cvssScore":[0-9.]*' "${{ inputs.out_dir }}/trivy.sarif" | grep -o '[0-9.]*' || echo "")
+            
+            if [ -n "$cvss_scores" ]; then
+              echo "Found CVSS scores: $cvss_scores"
+              # Check if any score >= threshold
+              threshold=${{ inputs.fail_on_cvss }}
+              for score in $cvss_scores; do
+                if (( $(echo "$score >= $threshold" | bc -l) )); then
+                  echo "❌ CVSS score $score >= $threshold - build fails"
+                  echo "Check ${{ inputs.out_dir }}/trivy.sarif for vulnerability details"
+                  echo "SARIF content preview:"
+                  head -30 "${{ inputs.out_dir }}/trivy.sarif"
+                  exit 1
+                fi
+              done
+              echo "✅ All CVSS scores below threshold $threshold - build passes"
+            else
+              echo "❌ Vulnerabilities found but no CVSS scores - build fails"
+              echo "Check ${{ inputs.out_dir }}/trivy.sarif for vulnerability details"
+              exit 1
+            fi
+          fi
+        else
+          echo "❌ SARIF file was not created"
+          exit 1
+        fi
+
+    # - name: Upload to GitHub Security tab
+    #   if: always()
+    #   uses: github/codeql-action/upload-sarif@v3
+    #   with:
+    #     sarif_file: ${{ inputs.out_dir }}/trivy.sarif
+    #     category: trivy-${{ inputs.scan_type }}-scan
+    #   continue-on-error: true
